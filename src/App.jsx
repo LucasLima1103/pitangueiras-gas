@@ -65,6 +65,12 @@ const firebaseConfig = {
   appId: "1:1031325898176:web:acd77e3c987299230ca425"
 };
 
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+// Definimos um ID fixo para o seu app não misturar dados
+const appId = 'pitangueiras-gas-app';
+
 
 // --- HELPERS E COMPONENTES AUXILIARES ---
 
