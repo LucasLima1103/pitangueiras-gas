@@ -25,7 +25,6 @@ import {
   MapPin, 
   CheckCircle, 
   ClipboardList,
-  FileText, 
   Download, 
   RefreshCw,
   ShoppingBag,
@@ -35,7 +34,8 @@ import {
   CreditCard,
   CreditCard as PaymentIcon,
   Banknote,
-  Smartphone
+  Smartphone,
+  Menu // Importando ícone de Menu
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -334,7 +334,7 @@ const POSView = ({ products, addToCart, cart, updateCartQuantity, removeFromCart
   const filteredProducts = products.filter(p => (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="h-[calc(100vh-2rem)] flex flex-col md:flex-row gap-6 animate-in slide-in-from-right duration-300">
+    <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-2rem)] flex flex-col md:flex-row gap-6 animate-in slide-in-from-right duration-300">
       <div className="flex-1 flex flex-col gap-4">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
           <Search className="text-gray-400" />
@@ -477,26 +477,6 @@ const DeliveriesView = ({ sales, markAsDelivered }) => {
   );
 };
 
-const FiscalView = ({ invoices, setInvoices, sales, setFiscalModalOpen, fiscalModalOpen, selectedSaleForInvoice, setSelectedSaleForInvoice, documentInput, setDocumentInput, handleEmitInvoice, isTransmitting, appId }) => {
-  const onEmit = async () => {
-    if (!documentInput || !db) return alert("Erro");
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'invoices'), {
-        id: Date.now(), number: Math.floor(Math.random()*9000)+1000, date: new Date().toISOString(), recipient: documentInput, total: selectedSaleForInvoice?.total || 0, status: 'authorized'
-      });
-      handleEmitInvoice();
-    } catch(e){ console.error(e); }
-  };
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between"><h2 className="text-2xl font-bold flex gap-2"><FileText className="text-blue-600"/> Fiscal</h2><Button onClick={() => setFiscalModalOpen(true)} variant="primary">Nova Nota</Button></div>
-      <div className="bg-white rounded-xl border overflow-hidden"><table className="w-full text-left"><thead className="bg-gray-50"><tr><th className="p-4">Número</th><th className="p-4">Destinatário</th><th className="p-4 text-right">Valor</th><th className="p-4 text-center">Status</th></tr></thead><tbody>{invoices.map(i => (<tr key={i.id} className="border-t"><td className="p-4">{i.number}</td><td className="p-4">{i.recipient}</td><td className="p-4 text-right">{formatCurrency(i.total)}</td><td className="p-4 text-center"><span className="bg-green-100 text-green-700 px-2 rounded text-xs">Autorizada</span></td></tr>))}</tbody></table></div>
-      {fiscalModalOpen && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-xl w-96 space-y-4"><h3 className="font-bold">Emitir Nota</h3><select className="w-full border p-2 rounded" onChange={e => { const s = sales.find(x => x.id === e.target.value); setSelectedSaleForInvoice(s); setDocumentInput(s?.client || ''); }}><option>Selecione Venda</option>{sales.map(s => <option key={s.id} value={s.id}>#{String(s.id).slice(-4)} - {formatCurrency(s.total)}</option>)}</select><input className="w-full border p-2 rounded" placeholder="CPF/CNPJ" value={documentInput} onChange={e => setDocumentInput(e.target.value)} /><div className="flex gap-2"><Button onClick={() => setFiscalModalOpen(false)} variant="secondary">Cancelar</Button><Button onClick={onEmit} disabled={isTransmitting}>{isTransmitting ? '...' : 'Emitir'}</Button></div></div></div>}
-    </div>
-  );
-};
-
 const StaffLoginScreen = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -533,6 +513,7 @@ const CustomerOrderView = ({ products, onOrder }) => {
   };
 
   const total = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+  const updateQty = (id, delta) => setCart(cart.map(i => i.id === id ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i).filter(i => i.quantity > 0));
 
   if (step === 'success') return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-3xl shadow-xl text-center"><CheckCircle size={48} className="text-green-600 mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Recebido!</h2><Button onClick={() => window.location.reload()} className="w-full bg-blue-600 text-white mt-4">Novo Pedido</Button></div></div>;
 
@@ -550,7 +531,7 @@ const CustomerOrderView = ({ products, onOrder }) => {
                   <div className="flex-1"><h3 className="font-bold text-lg">{p.name}</h3><p className={`font-bold text-xl ${p.category === 'gas' ? 'text-red-600' : 'text-blue-600'}`}>{formatCurrency(p.price)}</p></div>
                   <div className="flex flex-col items-end">
                     {cart.find(i => i.id === p.id) ? 
-                      <div className="flex flex-col items-center bg-gray-50 rounded-lg p-1 border"><button onClick={() => setCart(cart.map(i => i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i))} className="text-green-600 p-1"><Plus size={16}/></button><span className="font-bold">{cart.find(i => i.id === p.id).quantity}</span><button onClick={() => setCart(cart.map(i => i.id === p.id ? { ...i, quantity: Math.max(0, i.quantity - 1) } : i).filter(i => i.quantity > 0))} className="text-red-500 p-1"><Minus size={16}/></button></div> 
+                      <div className="flex flex-col items-center bg-gray-50 rounded-lg p-1 border"><button onClick={() => updateQty(p.id, 1)} className="text-green-600 p-1"><Plus size={16}/></button><span className="font-bold">{cart.find(i => i.id === p.id).quantity}</span><button onClick={() => updateQty(p.id, -1)} className="text-red-500 p-1"><Minus size={16}/></button></div> 
                       : <Button onClick={() => addToCart(p)} disabled={p.stock <= 0} className={`w-10 h-10 rounded-full p-0 flex items-center justify-center ${p.category === 'gas' ? 'bg-red-600' : 'bg-blue-600'} text-white`}><Plus/></Button>
                     }
                   </div>
@@ -585,24 +566,17 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [invoices, setInvoices] = useState([]);
   const [user, setUser] = useState(null);
   
-  // Pos State
   const [cart, setCart] = useState([]);
-
-  // Inventory State
   const [trash, setTrash] = useState([]);
   const [showTrash, setShowTrash] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'water', price: '', stock: '' });
   const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
 
-  // Fiscal State
-  const [fiscalModalOpen, setFiscalModalOpen] = useState(false);
-  const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState(null);
-  const [documentInput, setDocumentInput] = useState("");
-  const [isTransmitting, setIsTransmitting] = useState(false);
+  // Mobile Menu State
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleHash = () => setRoute(window.location.hash || '#/');
@@ -621,8 +595,7 @@ export default function App() {
     });
     const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), s => setSales(s.docs.map(x => ({id:x.id, ...x.data()})).sort((a,b) => new Date(b.date)-new Date(a.date))));
     const unsubC = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), s => setCustomers(s.docs.map(x => ({id:x.id, ...x.data()}))));
-    const unsubI = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'invoices'), s => setInvoices(s.docs.map(x => ({id:x.id, ...x.data()}))));
-    return () => { unsubP(); unsubS(); unsubC(); unsubI(); };
+    return () => { unsubP(); unsubS(); unsubC(); };
   }, [user]);
 
   const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
@@ -654,28 +627,49 @@ export default function App() {
   if (route === '#/admin') {
     if (!isAuthenticated || userRole !== 'admin') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
-      <div className="flex h-screen bg-gray-50">
-        <aside className="w-64 bg-red-900 text-white p-6 hidden md:block">
-          <h1 className="text-xl font-bold mb-8">Pitangueiras<br/>Admin</h1>
+      <div className="flex h-screen bg-gray-50 overflow-hidden relative">
+        {/* Mobile Menu Overlay */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
+        )}
+        
+        {/* Sidebar */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-red-900 text-white p-6 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex justify-between items-center mb-8">
+             <h1 className="text-xl font-bold">Pitangueiras<br/>Admin</h1>
+             <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white"><X /></button>
+          </div>
           <nav className="space-y-2">
             {[
               {id:'dashboard', icon:LayoutDashboard, l:'Dashboard'},
               {id:'pos', icon:ShoppingCart, l:'PDV'},
               {id:'inventory', icon:Package, l:'Estoque'},
               {id:'customers', icon:Users, l:'Clientes'},
-              {id:'sales', icon:History, l:'Histórico'},
-              {id:'fiscal', icon:FileText, l:'Fiscal'}
-            ].map(m => <button key={m.id} onClick={()=>setActiveTab(m.id)} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}><m.icon/>{m.l}</button>)}
+              {id:'sales', icon:History, l:'Histórico'}
+            ].map(m => (
+              <button key={m.id} onClick={()=>{setActiveTab(m.id); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}>
+                <m.icon/>{m.l}
+              </button>
+            ))}
           </nav>
           <div className="absolute bottom-4"><button onClick={handleLogout} className="flex gap-2 items-center text-red-200"><LogOut size={16}/> Sair</button></div>
         </aside>
-        <main className="flex-1 p-4 md:p-8 overflow-auto">
-          {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
-          {activeTab === 'pos' && <POSView products={products} cart={cart} addToCart={(p) => {const ex = cart.find(x=>x.id===p.id); if(ex) setCart(cart.map(x=>x.id===p.id?{...x, quantity:x.quantity+1}:x)); else setCart([...cart, {...p, quantity:1}]);}} updateCartQuantity={(id,d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: Math.max(1, i.quantity+d)}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} cartTotal={cart.reduce((a,b)=>a+b.price*b.quantity,0)} finalizeSale={finalizeSale}/>}
-          {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={setDeleteConfirmationId} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
-          {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} />}
-          {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="admin" />}
-          {activeTab === 'fiscal' && <FiscalView invoices={invoices} setInvoices={setInvoices} sales={sales} setFiscalModalOpen={setFiscalModalOpen} fiscalModalOpen={fiscalModalOpen} selectedSaleForInvoice={selectedSaleForInvoice} setSelectedSaleForInvoice={setSelectedSaleForInvoice} documentInput={documentInput} setDocumentInput={setDocumentInput} handleEmitInvoice={handleEmitInvoice} isTransmitting={isTransmitting} appId={appId} />}
+
+        <main className="flex-1 flex flex-col h-full overflow-hidden">
+          {/* Mobile Header */}
+          <header className="bg-white shadow-sm p-4 flex justify-between items-center md:hidden z-30">
+            <button onClick={() => setMobileMenuOpen(true)} className="text-gray-700"><Menu /></button>
+            <span className="font-bold text-gray-800">Admin</span>
+            <div className="w-6"></div>
+          </header>
+
+          <div className="flex-1 p-4 md:p-8 overflow-auto">
+            {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
+            {activeTab === 'pos' && <POSView products={products} cart={cart} addToCart={(p) => {const ex = cart.find(x=>x.id===p.id); if(ex) setCart(cart.map(x=>x.id===p.id?{...x, quantity:x.quantity+1}:x)); else setCart([...cart, {...p, quantity:1}]);}} updateCartQuantity={(id,d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: Math.max(1, i.quantity+d)}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} cartTotal={cart.reduce((a,b)=>a+b.price*b.quantity,0)} finalizeSale={finalizeSale}/>}
+            {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={setDeleteConfirmationId} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
+            {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} />}
+            {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="admin" />}
+          </div>
         </main>
       </div>
     );
@@ -684,18 +678,35 @@ export default function App() {
   if (route === '#/driver') {
     if (!isAuthenticated || userRole !== 'entregador') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
-      <div className="flex h-screen bg-gray-50">
-        <aside className="w-64 bg-blue-900 text-white p-6 hidden md:block">
-          <h1 className="text-xl font-bold mb-8">Entregas</h1>
+      <div className="flex h-screen bg-gray-50 overflow-hidden relative">
+        {/* Mobile Menu Overlay */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
+        )}
+        
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white p-6 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex justify-between items-center mb-8">
+             <h1 className="text-xl font-bold">Entregas</h1>
+             <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white"><X /></button>
+          </div>
           <nav className="space-y-2">
-            <button onClick={()=>setActiveTab('deliveries')} className={`flex gap-3 w-full p-2 rounded ${activeTab==='deliveries'?'bg-orange-500':''}`}><Truck/> Entregas</button>
-            <button onClick={()=>setActiveTab('sales')} className={`flex gap-3 w-full p-2 rounded ${activeTab==='sales'?'bg-orange-500':''}`}><History/> Histórico</button>
+            <button onClick={()=>{setActiveTab('deliveries'); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab==='deliveries'?'bg-orange-500':''}`}><Truck/> Entregas</button>
+            <button onClick={()=>{setActiveTab('sales'); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab==='sales'?'bg-orange-500':''}`}><History/> Histórico</button>
           </nav>
           <div className="absolute bottom-4"><button onClick={handleLogout} className="flex gap-2 items-center text-blue-200"><LogOut size={16}/> Sair</button></div>
         </aside>
-        <main className="flex-1 p-4 md:p-8 overflow-auto">
-          {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); }} />}
-          {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="entregador" />}
+        
+        <main className="flex-1 flex flex-col h-full overflow-hidden">
+             {/* Mobile Header */}
+             <header className="bg-white shadow-sm p-4 flex justify-between items-center md:hidden z-30">
+                <button onClick={() => setMobileMenuOpen(true)} className="text-gray-700"><Menu /></button>
+                <span className="font-bold text-gray-800">Motorista</span>
+                <div className="w-6"></div>
+            </header>
+            <div className="flex-1 p-4 md:p-8 overflow-auto">
+                {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); }} />}
+                {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="entregador" />}
+            </div>
         </main>
       </div>
     );
