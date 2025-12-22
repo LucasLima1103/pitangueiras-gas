@@ -25,6 +25,7 @@ import {
   MapPin, 
   CheckCircle, 
   ClipboardList,
+  FileText, 
   Download, 
   RefreshCw,
   ShoppingBag,
@@ -35,7 +36,9 @@ import {
   CreditCard as PaymentIcon,
   Banknote,
   Smartphone,
-  Menu // Importando ícone de Menu
+  Menu,
+  Navigation, // Novo ícone para Rota
+  Map // Novo ícone para Mapa
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -267,6 +270,9 @@ const DashboardView = ({ sales, products }) => {
   });
   const revenueToday = salesToday.reduce((acc, s) => acc + (s.total || 0), 0);
   const lowStockItems = products.filter(p => p.stock < 15);
+  
+  // Active deliveries for dashboard
+  const activeDeliveries = sales.filter(s => s.status === 'em_rota');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -283,13 +289,42 @@ const DashboardView = ({ sales, products }) => {
             <div><p className="text-sm text-emerald-600 font-medium">Vendas Totais</p><h3 className="text-2xl font-bold text-gray-800">{sales.length}</h3></div>
           </div>
         </Card>
-        <Card className="bg-red-50 border-red-100">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-red-500 rounded-full text-white"><Package size={24} /></div>
-            <div><p className="text-sm text-red-600 font-medium">Estoque Baixo</p><h3 className="text-2xl font-bold text-gray-800">{lowStockItems.length}</h3></div>
+        <Card className="bg-orange-50 border-orange-100">
+           <div className="flex items-center gap-4">
+            <div className="p-3 bg-orange-500 rounded-full text-white"><Truck size={24} /></div>
+            <div><p className="text-sm text-orange-600 font-medium">Entregas em Andamento</p><h3 className="text-2xl font-bold text-gray-800">{activeDeliveries.length}</h3></div>
           </div>
         </Card>
       </div>
+
+      {/* RASTREAMENTO EM TEMPO REAL NO DASHBOARD DO ADMIN */}
+      {activeDeliveries.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Navigation size={20} className="text-blue-600 animate-pulse"/> Acompanhamento em Tempo Real
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeDeliveries.map(delivery => (
+              <div key={delivery.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex justify-between items-center">
+                <div>
+                  <p className="font-bold text-gray-800">{delivery.client}</p>
+                  <p className="text-sm text-gray-500 flex items-center gap-1"><MapPin size={12}/> {delivery.address}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                      <Truck size={12}/> Em Rota
+                    </span>
+                    <span className="text-xs text-gray-400">Valor: {formatCurrency(delivery.total)}</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center animate-bounce">
+                  <Truck className="text-blue-600" size={24} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><History size={20} className="text-blue-600"/> Últimas Vendas</h3>
@@ -446,7 +481,7 @@ const SalesHistoryView = ({ sales, userRole }) => {
               <tr key={s.id} className="hover:bg-gray-50">
                 <td className="p-4">{formatDateSafe(s.date)} <span className="text-gray-400 text-xs">{formatTimeSafe(s.date)}</span></td>
                 <td className="p-4 text-sm">{s.address ? <span className="flex gap-1 text-blue-600 font-bold"><MapPin size={12}/> {s.address}</span> : 'Balcão'}</td>
-                <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'pendente' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>{s.status}</span></td>
+                <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'pendente' ? 'bg-yellow-100 text-yellow-700' : (s.status === 'em_rota' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700')}`}>{s.status === 'em_rota' ? 'Em Rota' : s.status}</span></td>
                 <td className="p-4 text-right font-bold">{formatCurrency(s.total)}</td>
               </tr>
             ))}
@@ -457,18 +492,50 @@ const SalesHistoryView = ({ sales, userRole }) => {
   );
 };
 
-const DeliveriesView = ({ sales, markAsDelivered }) => {
-  const pending = sales.filter(s => s.type === 'entrega' && s.status === 'pendente');
+const DeliveriesView = ({ sales, updateStatus, markAsDelivered }) => {
+  const pending = sales.filter(s => s.type === 'entrega' && (s.status === 'pendente' || s.status === 'em_rota'));
+  
+  const startRoute = async (id) => {
+      // Atualiza para em_rota
+      await updateStatus(id, 'em_rota');
+      // Em uma aplicação real, aqui iniciaria o watchPosition
+      alert("Rota iniciada! O cliente será notificado.");
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <h2 className="text-2xl font-bold flex gap-2"><Truck className="text-blue-600"/> Pendentes</h2>
       {pending.length === 0 ? <div className="bg-white p-12 rounded-xl border text-center text-gray-500">Tudo entregue!</div> : 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {pending.map(s => (
-            <Card key={s.id} className="border-l-4 border-l-red-500 relative">
-              <div className="flex justify-between mb-4"><div><span className="text-xs font-bold text-gray-400">PEDIDO</span><h3 className="font-bold">{s.client || 'Cliente'}</h3></div><span className="bg-red-100 text-red-700 px-2 rounded text-xs h-fit">Pendente</span></div>
+            <Card key={s.id} className={`border-l-4 ${s.status === 'em_rota' ? 'border-l-blue-500' : 'border-l-red-500'} relative`}>
+              <div className="flex justify-between mb-4">
+                  <div><span className="text-xs font-bold text-gray-400">PEDIDO</span><h3 className="font-bold">{s.client || 'Cliente'}</h3></div>
+                  <span className={`${s.status === 'em_rota' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'} px-2 rounded text-xs h-fit font-bold flex items-center gap-1`}>
+                    {s.status === 'em_rota' && <RefreshCw size={12} className="animate-spin"/>}
+                    {s.status === 'em_rota' ? 'Em Rota' : 'Pendente'}
+                  </span>
+              </div>
               <div className="space-y-2 mb-4"><div className="flex gap-2"><MapPin size={18} className="text-blue-500"/><p className="text-sm">{s.address}</p></div><div className="flex gap-2"><DollarSign size={18} className="text-green-500"/><p className="text-sm font-bold">{formatCurrency(s.total)} ({s.method})</p></div></div>
-              <div className="flex gap-2"><Button onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(s.address)}`, '_blank')} className="flex-1 bg-blue-100 text-blue-700">Rota</Button><Button onClick={() => markAsDelivered(s.id)} variant="success" className="flex-1">Entregue</Button></div>
+              <div className="flex gap-2">
+                  <Button 
+                    onClick={() => startRoute(s.id)}
+                    className={`flex-1 ${s.status === 'em_rota' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                    disabled={s.status === 'em_rota'}
+                  >
+                    <Navigation size={18} /> Rota
+                  </Button>
+                  <Button onClick={() => markAsDelivered(s.id)} variant="success" className="flex-1">
+                    <CheckCircle size={18} /> Entregue
+                  </Button>
+              </div>
+              {s.status === 'em_rota' && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                     <button onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(s.address)}`, '_blank')} className="w-full text-xs text-blue-600 hover:underline flex items-center justify-center gap-1">
+                        <Map size={12}/> Abrir no Google Maps
+                     </button>
+                  </div>
+              )}
             </Card>
           ))}
         </div>
@@ -500,6 +567,81 @@ const StaffLoginScreen = ({ onLogin }) => {
   );
 };
 
+// --- CUSTOMER TRACKING COMPONENT ---
+const CustomerTracking = ({ orderId, sales, onNewOrder }) => {
+    const order = sales.find(s => s.id === orderId);
+
+    // Se não achar o pedido ou ele já foi entregue (e o cliente não está vendo o sucesso ainda), voltamos ao form
+    if (!order) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-gray-500">Buscando pedido...</p></div>;
+    
+    // Se foi entregue, mostra tela de sucesso
+    if (order.status === 'entregue') {
+         return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md w-full animate-in zoom-in duration-300">
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <CheckCircle size={48} className="text-green-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">Pedido Entregue!</h2>
+                <p className="text-gray-600 mb-8 text-lg">Obrigado pela preferência.</p>
+                <Button onClick={onNewOrder} className="w-full py-4 bg-blue-600 text-white hover:bg-blue-700 text-lg rounded-xl shadow-lg">
+                    Fazer Novo Pedido
+                </Button>
+                </div>
+            </div>
+         );
+    }
+
+    return (
+        <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center font-sans">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-red-600 to-blue-600 p-6 text-white text-center">
+                    <h2 className="text-2xl font-bold">Acompanhe seu Pedido</h2>
+                    <p className="text-white/80 text-sm">Pedido #{String(order.id).slice(-4)}</p>
+                </div>
+                
+                <div className="p-8 space-y-8">
+                    {/* Status Visual */}
+                    <div className="flex flex-col items-center">
+                        <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all duration-500 ${order.status === 'em_rota' ? 'bg-blue-100 text-blue-600 scale-110 shadow-lg' : 'bg-yellow-100 text-yellow-600'}`}>
+                            {order.status === 'em_rota' ? <Truck size={40} className="animate-bounce" /> : <Package size={40} />}
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800">
+                            {order.status === 'em_rota' ? 'Saiu para Entrega!' : 'Pedido Recebido'}
+                        </h3>
+                        <p className="text-gray-500 text-center mt-2">
+                            {order.status === 'em_rota' ? 'O entregador está a caminho do seu endereço.' : 'Aguardando o entregador iniciar a rota.'}
+                        </p>
+                    </div>
+
+                    {/* Progress Bar Simulated */}
+                    <div className="w-full bg-gray-100 rounded-full h-2 relative overflow-hidden">
+                         <div className={`h-full rounded-full transition-all duration-1000 ${order.status === 'em_rota' ? 'w-3/4 bg-blue-500' : 'w-1/4 bg-yellow-400'}`}></div>
+                    </div>
+
+                    {/* Info Card */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500">Valor a Pagar:</span>
+                            <span className="font-bold text-gray-800">{formatCurrency(order.total)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                             <span className="text-gray-500">Pagamento:</span>
+                             <span className="font-bold text-gray-800">{order.method}</span>
+                        </div>
+                         <div className="flex justify-between items-center text-sm">
+                             <span className="text-gray-500">Endereço:</span>
+                             <span className="font-bold text-gray-800 truncate max-w-[150px]">{order.address}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <p className="mt-8 text-gray-400 text-xs text-center">Não feche esta página para acompanhar.</p>
+        </div>
+    );
+};
+
 const CustomerOrderView = ({ products, onOrder }) => {
   const [cart, setCart] = useState([]);
   const [step, setStep] = useState('products');
@@ -514,8 +656,6 @@ const CustomerOrderView = ({ products, onOrder }) => {
 
   const total = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
   const updateQty = (id, delta) => setCart(cart.map(i => i.id === id ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i).filter(i => i.quantity > 0));
-
-  if (step === 'success') return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-3xl shadow-xl text-center"><CheckCircle size={48} className="text-green-600 mx-auto mb-4" /><h2 className="text-2xl font-bold mb-2">Recebido!</h2><Button onClick={() => window.location.reload()} className="w-full bg-blue-600 text-white mt-4">Novo Pedido</Button></div></div>;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-32">
@@ -549,7 +689,7 @@ const CustomerOrderView = ({ products, onOrder }) => {
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Seu Nome" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} />
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Endereço Completo" value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} />
               <div className="grid grid-cols-3 gap-2">{['Dinheiro', 'PIX', 'Cartão'].map(m => <button key={m} onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`p-3 border rounded-xl ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}>{m}</button>)}</div>
-              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); setStep('success'); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl">Confirmar Pedido</Button>
+              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl">Confirmar Pedido</Button>
             </div>
           </div>
         )}
@@ -577,6 +717,9 @@ export default function App() {
 
   // Mobile Menu State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Customer Active Order State (Persistent)
+  const [activeOrderId, setActiveOrderId] = useState(() => localStorage.getItem('activeOrderId') || null);
 
   useEffect(() => {
     const handleHash = () => setRoute(window.location.hash || '#/');
@@ -603,10 +746,26 @@ export default function App() {
 
   const handleCustomerOrder = async (data) => {
     if (!db) return;
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
-      date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
-    });
+    try {
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
+            date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
+        });
+        
+        // Save ID to local storage for tracking
+        localStorage.setItem('activeOrderId', docRef.id);
+        setActiveOrderId(docRef.id);
+
+        for (const item of data.cart) {
+            const p = products.find(prod => prod.id === item.id);
+            if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
+        }
+    } catch(e) { console.error(e); }
   };
+
+  const handleNewOrder = () => {
+      localStorage.removeItem('activeOrderId');
+      setActiveOrderId(null);
+  }
 
   const updateStock = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {stock: parseInt(val)}); };
   const updatePrice = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {price: parseFloat(val)}); };
@@ -628,12 +787,9 @@ export default function App() {
     if (!isAuthenticated || userRole !== 'admin') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
       <div className="flex h-screen bg-gray-50 overflow-hidden relative">
-        {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
         )}
-        
-        {/* Sidebar */}
         <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-red-900 text-white p-6 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex justify-between items-center mb-8">
              <h1 className="text-xl font-bold">Pitangueiras<br/>Admin</h1>
@@ -647,22 +803,17 @@ export default function App() {
               {id:'customers', icon:Users, l:'Clientes'},
               {id:'sales', icon:History, l:'Histórico'}
             ].map(m => (
-              <button key={m.id} onClick={()=>{setActiveTab(m.id); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}>
-                <m.icon/>{m.l}
-              </button>
+              <button key={m.id} onClick={()=>{setActiveTab(m.id); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}><m.icon/>{m.l}</button>
             ))}
           </nav>
           <div className="absolute bottom-4"><button onClick={handleLogout} className="flex gap-2 items-center text-red-200"><LogOut size={16}/> Sair</button></div>
         </aside>
-
         <main className="flex-1 flex flex-col h-full overflow-hidden">
-          {/* Mobile Header */}
           <header className="bg-white shadow-sm p-4 flex justify-between items-center md:hidden z-30">
             <button onClick={() => setMobileMenuOpen(true)} className="text-gray-700"><Menu /></button>
             <span className="font-bold text-gray-800">Admin</span>
             <div className="w-6"></div>
           </header>
-
           <div className="flex-1 p-4 md:p-8 overflow-auto">
             {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
             {activeTab === 'pos' && <POSView products={products} cart={cart} addToCart={(p) => {const ex = cart.find(x=>x.id===p.id); if(ex) setCart(cart.map(x=>x.id===p.id?{...x, quantity:x.quantity+1}:x)); else setCart([...cart, {...p, quantity:1}]);}} updateCartQuantity={(id,d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: Math.max(1, i.quantity+d)}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} cartTotal={cart.reduce((a,b)=>a+b.price*b.quantity,0)} finalizeSale={finalizeSale}/>}
@@ -679,11 +830,9 @@ export default function App() {
     if (!isAuthenticated || userRole !== 'entregador') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
       <div className="flex h-screen bg-gray-50 overflow-hidden relative">
-        {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
         )}
-        
         <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white p-6 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex justify-between items-center mb-8">
              <h1 className="text-xl font-bold">Entregas</h1>
@@ -695,21 +844,24 @@ export default function App() {
           </nav>
           <div className="absolute bottom-4"><button onClick={handleLogout} className="flex gap-2 items-center text-blue-200"><LogOut size={16}/> Sair</button></div>
         </aside>
-        
         <main className="flex-1 flex flex-col h-full overflow-hidden">
-             {/* Mobile Header */}
              <header className="bg-white shadow-sm p-4 flex justify-between items-center md:hidden z-30">
                 <button onClick={() => setMobileMenuOpen(true)} className="text-gray-700"><Menu /></button>
                 <span className="font-bold text-gray-800">Motorista</span>
                 <div className="w-6"></div>
             </header>
             <div className="flex-1 p-4 md:p-8 overflow-auto">
-                {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); }} />}
+                {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); }} updateStatus={async (id, st) => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: st})} />}
                 {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="entregador" />}
             </div>
         </main>
       </div>
     );
+  }
+
+  // Se existe um pedido ativo no localStorage, mostra a tela de rastreamento
+  if (activeOrderId) {
+      return <CustomerTracking orderId={activeOrderId} sales={sales} onNewOrder={handleNewOrder} />
   }
 
   return <CustomerOrderView products={products} onOrder={handleCustomerOrder} />;
