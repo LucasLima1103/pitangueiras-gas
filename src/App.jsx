@@ -56,21 +56,21 @@ import {
 } from "firebase/firestore";
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
+// ⚠️ IMPORTANTE: Substitua os valores abaixo pelas chaves que copiou do site do Firebase ⚠️
 const firebaseConfig = {
-  apiKey: "AIzaSyDrtW-74hc7MrzvTO6EoagpexE6tSVRrYo",
-  authDomain: "pitangueiras-gas-app.firebaseapp.com",
-  projectId: "pitangueiras-gas-app",
-  storageBucket: "pitangueiras-gas-app.firebasestorage.app",
-  messagingSenderId: "1031325898176",
-  appId: "1:1031325898176:web:acd77e3c987299230ca425"
+  apiKey: "COLE_SUA_API_KEY_AQUI",
+  authDomain: "SEU_PROJETO.firebaseapp.com",
+  projectId: "SEU_PROJETO",
+  storageBucket: "SEU_PROJETO.appspot.com",
+  messagingSenderId: "SEUS_NUMEROS",
+  appId: "SEU_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Definimos um ID fixo para o seu app não misturar dados
+// Define um ID padrão para o app
 const appId = 'pitangueiras-gas-app';
-
 
 // --- HELPERS E COMPONENTES AUXILIARES ---
 
@@ -128,10 +128,8 @@ const CustomersView = ({ customers, appId, userId }) => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', cpf: '', address: '' });
   
-  // Estado para nova venda a prazo
   const [newDebt, setNewDebt] = useState({ purchaseDate: '', dueDate: '', amount: '', description: '' });
 
-  // Referência para coleção de clientes
   const customersRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
 
   const handleAddCustomer = async () => {
@@ -154,7 +152,7 @@ const CustomersView = ({ customers, appId, userId }) => {
     if (!selectedCustomer) return;
 
     const debt = { 
-      id: Date.now(), // ID local para o item do array
+      id: Date.now(), 
       ...newDebt, 
       amount: parseFloat(newDebt.amount), 
       paid: false 
@@ -186,7 +184,6 @@ const CustomersView = ({ customers, appId, userId }) => {
     }
   };
 
-  // Mantém o cliente selecionado atualizado com os dados do banco
   const activeCustomerData = selectedCustomer ? customers.find(c => c.id === selectedCustomer.id) : null;
 
   return (
@@ -201,7 +198,6 @@ const CustomersView = ({ customers, appId, userId }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lista de Clientes */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-700">
@@ -234,7 +230,6 @@ const CustomersView = ({ customers, appId, userId }) => {
           </div>
         </div>
 
-        {/* Detalhes do Cliente e Vendas a Prazo */}
         <div className="lg:col-span-2">
           {activeCustomerData ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6">
@@ -254,7 +249,6 @@ const CustomersView = ({ customers, appId, userId }) => {
                 </div>
               </div>
 
-              {/* Formulário de Nova Venda a Prazo */}
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
                 <h4 className="font-bold text-gray-700 text-sm flex items-center gap-2">
                   <CreditCard size={16}/> Lançar Venda a Prazo (Fiado)
@@ -299,7 +293,6 @@ const CustomersView = ({ customers, appId, userId }) => {
                 </div>
               </div>
 
-              {/* Tabela de Vendas/Dívidas */}
               <div className="overflow-hidden">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-gray-50 text-gray-500">
@@ -351,7 +344,6 @@ const CustomersView = ({ customers, appId, userId }) => {
         </div>
       </div>
 
-      {/* Modal Novo Cliente */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
           <div className="bg-white p-6 rounded-xl shadow-xl w-96 space-y-4">
