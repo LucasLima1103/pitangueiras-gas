@@ -32,7 +32,10 @@ import {
   ChevronLeft,
   Users, 
   Calendar, 
-  CreditCard 
+  CreditCard,
+  CreditCard as PaymentIcon, // Alias para ícone de pagamento
+  Banknote,
+  Smartphone
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -265,20 +268,94 @@ const DashboardView = ({ sales, products }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-blue-50 border-blue-100">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-full text-white"><DollarSign size={24} /></div>
-            <div><p className="text-sm text-blue-700 font-medium">Faturamento Hoje</p><h3 className="text-2xl font-bold text-gray-800">{formatCurrency(revenueToday)}</h3></div>
+            <div className="p-3 bg-blue-600 rounded-full text-white">
+              <DollarSign size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-blue-700 font-medium">Faturamento Hoje</p>
+              <h3 className="text-2xl font-bold text-gray-800">{formatCurrency(revenueToday)}</h3>
+            </div>
           </div>
         </Card>
+        
         <Card className="bg-emerald-50 border-emerald-100">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-emerald-500 rounded-full text-white"><TrendingUp size={24} /></div>
-            <div><p className="text-sm text-emerald-600 font-medium">Vendas Totais</p><h3 className="text-2xl font-bold text-gray-800">{sales.length}</h3></div>
+            <div className="p-3 bg-emerald-500 rounded-full text-white">
+              <TrendingUp size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-emerald-600 font-medium">Vendas Totais</p>
+              <h3 className="text-2xl font-bold text-gray-800">{sales.length}</h3>
+            </div>
           </div>
         </Card>
+
         <Card className="bg-red-50 border-red-100">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-red-500 rounded-full text-white"><Package size={24} /></div>
-            <div><p className="text-sm text-red-600 font-medium">Produtos Baixo Estoque</p><h3 className="text-2xl font-bold text-gray-800">{lowStockItems.length}</h3></div>
+            <div className="p-3 bg-red-500 rounded-full text-white">
+              <Package size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-red-600 font-medium">Produtos Baixo Estoque</p>
+              <h3 className="text-2xl font-bold text-gray-800">{lowStockItems.length}</h3>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <History size={20} className="text-blue-600"/> Últimas Vendas
+          </h3>
+          <div className="overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="p-3">Horário</th>
+                  <th className="p-3">Valor</th>
+                  <th className="p-3">Tipo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sales.length === 0 ? (
+                  <tr><td colSpan="3" className="p-4 text-center text-gray-400">Sem vendas recentes</td></tr>
+                ) : (
+                  sales.slice(0, 5).map(sale => (
+                    <tr key={sale.id}>
+                      <td className="p-3">{new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                      <td className="p-3 font-medium">{formatCurrency(sale.total)}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs ${sale.type === 'entrega' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {sale.type === 'entrega' ? 'Entrega' : 'Balcão'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <AlertTriangle size={20} className="text-red-500"/> Alertas de Estoque
+          </h3>
+          <div className="space-y-3">
+            {lowStockItems.length === 0 ? (
+              <p className="text-center text-gray-400 py-4">Estoque normal</p>
+            ) : (
+              lowStockItems.map(item => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
+                  <div className="flex items-center gap-3">
+                    {item.category === 'gas' ? <Flame size={18} className="text-red-500" /> : <Droplets size={18} className="text-blue-500" />}
+                    <span className="font-medium text-gray-700">{item.name}</span>
+                  </div>
+                  <span className="font-bold text-red-600">{item.stock} un.</span>
+                </div>
+              ))
+            )}
           </div>
         </Card>
       </div>
@@ -286,15 +363,917 @@ const DashboardView = ({ sales, products }) => {
   );
 };
 
-// ... (POSView, InventoryView, SalesHistoryView, DeliveriesView, FiscalView, StaffLoginScreen - mantendo estrutura, simplificando para caber se necessário, mas o foco é CustomerOrderView)
+const POSView = ({ products, addToCart, cart, updateCartQuantity, removeFromCart, cartTotal, finalizeSale }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [clientName, setClientName] = useState("");
 
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="h-[calc(100vh-2rem)] flex flex-col md:flex-row gap-6 animate-in slide-in-from-right duration-300">
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <Search className="text-gray-400" />
+          <input 
+            type="text" 
+            placeholder="Buscar produto..." 
+            className="flex-1 outline-none text-gray-700"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-4">
+          {filteredProducts.map(product => (
+            <button 
+              key={product.id}
+              onClick={() => addToCart(product)}
+              disabled={product.stock === 0}
+              className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-left transition-all hover:shadow-md hover:border-red-300 flex flex-col gap-2 group ${product.stock === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex justify-between items-start w-full">
+                <div className={`p-2 rounded-lg ${product.category === 'gas' ? 'bg-red-100 text-red-600' : product.category === 'water' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
+                  {product.category === 'gas' ? <Flame size={20} /> : product.category === 'water' ? <Droplets size={20} /> : <Package size={20} />}
+                </div>
+                <span className={`text-xs font-bold px-2 py-1 rounded ${product.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                  Est: {product.stock}
+                </span>
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-800 leading-tight group-hover:text-red-600">{product.name}</h4>
+                <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(product.price)}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="w-full md:w-96 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col h-full overflow-hidden">
+        <div className="p-4 bg-gray-50 border-b border-gray-200">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <ShoppingCart size={20} /> Carrinho Atual
+          </h3>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {cart.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
+              <ShoppingCart size={48} className="mb-2" />
+              <p>Carrinho vazio</p>
+            </div>
+          ) : (
+            cart.map(item => (
+              <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <p className="font-medium text-sm text-gray-800">{item.name}</p>
+                  <p className="text-xs text-gray-500">{formatCurrency(item.price)} un.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 bg-white rounded-md border border-gray-200">
+                    <button onClick={() => updateCartQuantity(item.id, -1)} className="p-1 hover:bg-gray-100 text-gray-600"><Minus size={14} /></button>
+                    <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                    <button onClick={() => updateCartQuantity(item.id, 1)} className="p-1 hover:bg-gray-100 text-gray-600"><Plus size={14} /></button>
+                  </div>
+                  <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3">
+          <div className="flex justify-between items-center text-lg font-bold text-gray-800">
+            <span>Total</span>
+            <span>{formatCurrency(cartTotal)}</span>
+          </div>
+          {paymentModalOpen ? (
+            <div className="space-y-3 animate-in slide-in-from-bottom">
+              <div className="flex items-center justify-between border-b pb-2 mb-2">
+                <span className="text-sm font-medium text-gray-700">Tipo de Pedido:</span>
+                <div className="flex gap-2">
+                    <button 
+                    onClick={() => setIsDelivery(false)}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${!isDelivery ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}
+                    >
+                      Balcão
+                    </button>
+                    <button 
+                    onClick={() => setIsDelivery(true)}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${isDelivery ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}
+                    >
+                      Entrega
+                    </button>
+                </div>
+              </div>
+
+              {isDelivery && (
+                <div className="space-y-2 bg-red-50 p-3 rounded-lg border border-red-100">
+                  <input 
+                    type="text" 
+                    placeholder="Nome do Cliente"
+                    className="w-full p-2 text-sm border border-gray-300 rounded focus:border-red-500 outline-none"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Endereço de Entrega"
+                    className="w-full p-2 text-sm border border-gray-300 rounded focus:border-red-500 outline-none"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600 text-center mb-2">Selecione o pagamento:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito'].map(method => (
+                  <button
+                    key={method}
+                    disabled={isDelivery && (!deliveryAddress || !clientName)}
+                    onClick={() => {
+                      finalizeSale(method, isDelivery, { address: deliveryAddress, client: clientName });
+                      setPaymentModalOpen(false);
+                      setIsDelivery(false);
+                      setDeliveryAddress("");
+                      setClientName("");
+                    }}
+                    className="p-2 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setPaymentModalOpen(false)}
+                className="w-full text-center text-sm text-red-500 mt-2 hover:underline"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <Button 
+              variant="success" 
+              className="w-full py-3 text-lg" 
+              disabled={cart.length === 0}
+              onClick={() => setPaymentModalOpen(true)}
+            >
+              {isDelivery ? 'Agendar Entrega' : 'Finalizar Venda'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const InventoryView = ({ 
+  showTrash, setShowTrash, activeTrash, products, updateStock, updatePrice, 
+  moveToTrash, restoreFromTrash, deletePermanently, setDeleteConfirmationId, 
+  isModalOpen, setIsModalOpen, newProduct, setNewProduct, handleAddProduct,
+  deleteConfirmationId, executeMoveToTrash
+}) => {
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 relative">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">
+          {showTrash ? 'Lixeira (Itens Excluídos)' : 'Controle de Estoque'}
+        </h2>
+        <div className="flex gap-2">
+          <Button 
+            variant={showTrash ? 'primary' : 'outline'}
+            onClick={() => setShowTrash(!showTrash)}
+            className={showTrash ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-gray-500 border-gray-300'}
+          >
+            {showTrash ? <Package size={18} /> : <Trash2 size={18} />}
+            {showTrash ? 'Voltar ao Estoque' : `Lixeira (${activeTrash.length})`}
+          </Button>
+          {!showTrash && (
+            <Button 
+              variant="primary" 
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Plus size={18} /> Novo Produto
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-gray-500 border-b border-gray-100">
+            <tr>
+              <th className="p-4 font-medium">Produto</th>
+              <th className="p-4 font-medium">Categoria</th>
+              {showTrash ? (
+                <>
+                  <th className="p-4 font-medium text-center">Excluído em</th>
+                  <th className="p-4 font-medium text-center">Expira em</th>
+                  <th className="p-4 font-medium text-center">Ações</th>
+                </>
+              ) : (
+                <>
+                  <th className="p-4 font-medium text-center">Estoque Atual</th>
+                  <th className="p-4 font-medium text-right">Preço (R$)</th>
+                  <th className="p-4 font-medium text-center">Ações</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {showTrash ? (
+              activeTrash.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-gray-400">A lixeira está vazia.</td>
+                </tr>
+              ) : (
+                activeTrash.map(product => (
+                  <tr key={product.id} className="hover:bg-red-50 bg-red-50/30">
+                    <td className="p-4 font-medium text-gray-600 line-through decoration-red-400">{product.name}</td>
+                    <td className="p-4">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 grayscale">
+                        {product.category.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center text-sm text-gray-500">
+                      {new Date(product.deletedAt).toLocaleDateString()} <span className="text-xs">{new Date(product.deletedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="inline-flex items-center gap-1 text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded-lg text-sm">
+                        <Timer size={14} />
+                        {getRemainingTime(product.deletedAt)}
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => restoreFromTrash(product.id)}
+                          className="text-green-600 hover:text-green-800 hover:bg-green-100 p-2 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium"
+                          title="Restaurar item"
+                        >
+                          <RotateCcw size={16} /> Restaurar
+                        </button>
+                        <button 
+                          onClick={() => deletePermanently(product.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-100 p-2 rounded-lg transition-colors"
+                          title="Excluir permanentemente"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )
+            ) : (
+              products.map(product => (
+                <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="p-4 font-medium text-gray-800">{product.name}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.category === 'gas' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {product.category.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => updateStock(product.id, Math.max(0, product.stock - 1))}
+                        className="w-8 h-8 rounded bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 flex items-center justify-center"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <input 
+                        type="number" 
+                        value={product.stock}
+                        onChange={(e) => updateStock(product.id, e.target.value)}
+                        className="w-16 text-center border border-gray-200 rounded py-1"
+                      />
+                      <button 
+                        onClick={() => updateStock(product.id, product.stock + 1)}
+                        className="w-8 h-8 rounded bg-gray-100 hover:bg-green-100 text-gray-600 hover:text-green-600 flex items-center justify-center"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="p-4 text-right">
+                    <input 
+                      type="number" 
+                      step="0.10"
+                      value={product.price}
+                      onChange={(e) => updatePrice(product.id, e.target.value)}
+                      className="w-24 text-right border border-gray-200 rounded py-1 px-2 focus:border-red-500 outline-none"
+                    />
+                  </td>
+                  <td className="p-4 text-center">
+                    <button 
+                      onClick={() => setDeleteConfirmationId(product.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                      title="Mover para lixeira"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal de Cadastro */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-96 space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-gray-800">Novo Produto</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                  placeholder="Ex: Água 5L"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                    placeholder="0.00"
+                    value={newProduct.price}
+                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estoque</label>
+                  <input 
+                    type="number" 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                    placeholder="0"
+                    value={newProduct.stock}
+                    onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                <select 
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-red-500 bg-white"
+                  value={newProduct.category}
+                  onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                >
+                  <option value="gas">Gás</option>
+                  <option value="water">Água</option>
+                  <option value="acessorios">Acessórios</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="flex-1 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleAddProduct}
+                className="flex-1 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão (Lixeira) */}
+      {deleteConfirmationId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-96 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle size={24} />
+              <h3 className="text-lg font-bold text-gray-800">Mover para Lixeira?</h3>
+            </div>
+            <p className="text-gray-600 text-sm">
+              O item será movido para a lixeira e ficará disponível para restauração por 72 horas.
+            </p>
+            <div className="flex gap-3 justify-end pt-2">
+              <button 
+                onClick={() => setDeleteConfirmationId(null)}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium text-sm"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={executeMoveToTrash}
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 font-medium text-sm"
+              >
+                Sim, mover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SalesHistoryView = ({ sales, userRole }) => {
+  const [filterDate, setFilterDate] = useState("");
+  
+  let baseSales = sales;
+  if (userRole === 'entregador') {
+    baseSales = sales.filter(s => s.type === 'entrega' && s.status === 'entregue');
+  }
+
+  const filteredSales = filterDate 
+    ? baseSales.filter(s => s.date.startsWith(filterDate))
+    : baseSales;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">
+          {userRole === 'entregador' ? 'Minhas Entregas Realizadas' : 'Histórico Completo'}
+        </h2>
+        <input 
+          type="date" 
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700"
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-gray-500 border-b border-gray-100">
+            <tr>
+              <th className="p-4 font-medium">ID</th>
+              <th className="p-4 font-medium">Data/Hora</th>
+              <th className="p-4 font-medium">Detalhes</th>
+              <th className="p-4 font-medium">Status</th>
+              <th className="p-4 font-medium text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredSales.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="p-8 text-center text-gray-400">Nenhum registro encontrado.</td>
+              </tr>
+            ) : (
+              filteredSales.map(sale => (
+                <tr key={sale.id} className="hover:bg-gray-50">
+                  <td className="p-4 text-gray-500">#{String(sale.id).slice(-6)}</td>
+                  <td className="p-4 text-gray-800">
+                    {new Date(sale.date).toLocaleDateString()} <span className="text-gray-400 text-sm">{new Date(sale.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex flex-col gap-1">
+                        {sale.address && (
+                        <span className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1">
+                            <MapPin size={12}/> {sale.address}
+                        </span>
+                      )}
+                      {sale.items.map((item, idx) => (
+                        <span key={idx} className="text-sm text-gray-600">
+                          {item.qtd}x {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                      <span className={`px-2 py-1 rounded text-xs font-bold border ${
+                        sale.status === 'pendente' 
+                          ? 'bg-yellow-100 text-yellow-700 border-yellow-200' 
+                          : 'bg-green-100 text-green-700 border-green-200'
+                      }`}>
+                      {sale.status === 'pendente' ? 'Pendente' : 'Concluído'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right font-bold text-gray-800">{formatCurrency(sale.total)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const DeliveriesView = ({ sales, markAsDelivered }) => {
+  const pendingDeliveries = sales.filter(s => s.type === 'entrega' && s.status === 'pendente');
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <Truck className="text-blue-600" /> Entregas Pendentes
+      </h2>
+
+      {pendingDeliveries.length === 0 ? (
+        <div className="bg-white p-12 rounded-xl shadow-sm border border-gray-100 text-center">
+          <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
+          <h3 className="text-xl font-bold text-gray-800">Tudo limpo!</h3>
+          <p className="text-gray-500">Nenhuma entrega pendente no momento.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {pendingDeliveries.map(sale => (
+            <Card key={sale.id} className="border-l-4 border-l-red-500 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Truck size={64} />
+              </div>
+              
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <span className="text-xs font-bold text-gray-400">PEDIDO #{String(sale.id).slice(-4)}</span>
+                  <h3 className="text-lg font-bold text-gray-800 mt-1">{sale.client || "Cliente não informado"}</h3>
+                </div>
+                <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">
+                  Pendente
+                </span>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-2 text-gray-600">
+                  <MapPin size={18} className="mt-1 text-blue-500 shrink-0" />
+                  <p className="font-medium text-sm leading-tight">{sale.address}</p>
+                </div>
+                <div className="flex items-center gap-2 text-gray-600">
+                  <DollarSign size={18} className="text-green-500 shrink-0" />
+                  <p className="font-medium text-sm">Valor: <span className="text-gray-900 font-bold">{formatCurrency(sale.total)}</span> ({sale.method})</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  <p className="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Itens</p>
+                  {sale.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-gray-700">{item.name}</span>
+                      <span className="font-bold text-gray-900">x{item.qtd}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button 
+                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(sale.address)}`, '_blank')}
+                  className="flex-1 bg-blue-100 text-blue-700 hover:bg-blue-200"
+                >
+                  <MapPin size={18} /> Rota
+                </Button>
+                <Button 
+                  onClick={() => markAsDelivered(sale.id)}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle size={18} /> Confirmar
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const FiscalView = ({ invoices, setInvoices, sales, setFiscalModalOpen, fiscalModalOpen, selectedSaleForInvoice, setSelectedSaleForInvoice, documentInput, setDocumentInput, handleEmitInvoice, isTransmitting, appId }) => {
+  const invoicesRef = collection(db, 'artifacts', appId, 'public', 'data', 'invoices');
+
+  const onEmit = async () => {
+    if (!documentInput) return alert("CPF/CNPJ obrigatório");
+    
+    // Simulação local de sucesso, mas salvando no banco
+    const newInvoice = {
+      id: Date.now(),
+      number: `00${Math.floor(Math.random() * 9000) + 1000}`,
+      date: new Date().toISOString(),
+      recipient: documentInput,
+      total: selectedSaleForInvoice ? selectedSaleForInvoice.total : 0,
+      status: 'authorized',
+      key: `${Math.random().toString(36).substr(2, 9)}...`
+    };
+
+    try {
+      await addDoc(invoicesRef, newInvoice);
+      handleEmitInvoice(); // Callback to clear local state
+    } catch(e) {
+      console.error("Erro ao emitir nota", e);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <FileText className="text-blue-600" /> Emissão de Notas Fiscais
+        </h2>
+        <Button onClick={() => setFiscalModalOpen(true)} variant="primary">
+          <Plus size={18} /> Nova Nota Fiscal
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-blue-50 border-blue-100">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500 rounded-full text-white">
+                <CheckCircle size={24} />
+              </div>
+              <div>
+                <p className="text-sm text-blue-600 font-medium">Autorizadas</p>
+                <h3 className="text-2xl font-bold text-gray-800">{invoices.filter(i => i.status === 'authorized').length}</h3>
+              </div>
+            </div>
+        </Card>
+        <Card className="bg-yellow-50 border-yellow-100">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-yellow-500 rounded-full text-white">
+                <RefreshCw size={24} />
+              </div>
+              <div>
+                <p className="text-sm text-yellow-600 font-medium">Processando</p>
+                <h3 className="text-2xl font-bold text-gray-800">{invoices.filter(i => i.status === 'processing').length}</h3>
+              </div>
+            </div>
+        </Card>
+        <Card className="bg-red-50 border-red-100">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-red-500 rounded-full text-white">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <p className="text-sm text-red-600 font-medium">Canceladas/Erro</p>
+                <h3 className="text-2xl font-bold text-gray-800">0</h3>
+              </div>
+            </div>
+        </Card>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+          <h3 className="font-bold text-gray-700">Histórico de Emissões</h3>
+        </div>
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-gray-500 border-b border-gray-100">
+            <tr>
+              <th className="p-4 font-medium">Número</th>
+              <th className="p-4 font-medium">Emissão</th>
+              <th className="p-4 font-medium">Destinatário</th>
+              <th className="p-4 font-medium">Status</th>
+              <th className="p-4 font-medium text-right">Valor</th>
+              <th className="p-4 font-medium text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {invoices.map(invoice => (
+              <tr key={invoice.id} className="hover:bg-gray-50">
+                <td className="p-4 font-medium text-gray-700">#{invoice.number}</td>
+                <td className="p-4 text-gray-600">
+                  {new Date(invoice.date).toLocaleDateString()} <span className="text-xs">{new Date(invoice.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </td>
+                <td className="p-4 text-gray-800 font-medium">{invoice.recipient}</td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${
+                    invoice.status === 'authorized' 
+                      ? 'bg-green-100 text-green-700' 
+                      : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {invoice.status === 'authorized' ? <CheckCircle size={12}/> : <RefreshCw size={12}/>}
+                    {invoice.status === 'authorized' ? 'Autorizada' : 'Processando'}
+                  </span>
+                </td>
+                <td className="p-4 text-right font-bold text-gray-800">{formatCurrency(invoice.total)}</td>
+                <td className="p-4 text-center">
+                   <button 
+                    className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                    title="Baixar DANFE/XML"
+                   >
+                     <Download size={18} />
+                   </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal de Emissão de Nota */}
+      {fiscalModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-[500px] space-y-6">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <FileText size={20} className="text-blue-600"/> Emitir Nota Fiscal (Simulação)
+              </h3>
+              <button onClick={() => setFiscalModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800">
+                <p>Esta é uma simulação. Em um ambiente real, os dados seriam assinados digitalmente e enviados para a API da SEFAZ.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Selecione uma Venda (Opcional)</label>
+                <select 
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white"
+                  onChange={(e) => {
+                    const sale = sales.find(s => s.id === e.target.value); // IDs agora são strings do Firestore
+                    if(sale) {
+                      setSelectedSaleForInvoice(sale);
+                      setDocumentInput(sale.client || '');
+                    } else {
+                      setSelectedSaleForInvoice(null);
+                      setDocumentInput('');
+                    }
+                  }}
+                >
+                  <option value="">-- Selecione --</option>
+                  {sales.map(s => (
+                    <option key={s.id} value={s.id}>Venda #{String(s.id).slice(-4)} - {formatCurrency(s.total)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Destinatário (CPF/CNPJ ou Nome)</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+                  placeholder="000.000.000-00"
+                  value={documentInput}
+                  onChange={(e) => setDocumentInput(e.target.value)}
+                />
+              </div>
+
+              {selectedSaleForInvoice && (
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Resumo da Nota</p>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Itens:</span>
+                    <span className="font-medium">{selectedSaleForInvoice.items.length} produtos</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-gray-900">
+                    <span>Valor Total:</span>
+                    <span>{formatCurrency(selectedSaleForInvoice.total)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                onClick={() => setFiscalModalOpen(false)}
+                className="flex-1 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={onEmit}
+                disabled={isTransmitting}
+                className="flex-1 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 disabled:bg-blue-400"
+              >
+                {isTransmitting ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin" /> Transmitindo...
+                  </>
+                ) : (
+                  <>Transmitir para SEFAZ</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- MODIFIED COMPONENT: STAFF LOGIN SCREEN ---
+const StaffLoginScreen = ({ onLogin }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const currentHash = window.location.hash;
+    
+    if (currentHash === '#/admin') {
+        if (username === 'admin' && password === '1234') {
+            onLogin('admin');
+        } else {
+            setError('Credenciais de Administrador inválidas');
+        }
+    } else if (currentHash === '#/driver') {
+        if (username === 'entregador' && password === '1234') {
+            onLogin('entregador');
+        } else {
+            setError('Credenciais de Entregador inválidas');
+        }
+    } else {
+        if (username === 'admin' && password === '1234') onLogin('admin');
+        else if (username === 'entregador' && password === '1234') onLogin('entregador');
+        else setError('Usuário ou senha inválidos');
+    }
+  };
+
+  const getTitle = () => {
+      if (window.location.hash === '#/admin') return "Acesso Administrativo";
+      if (window.location.hash === '#/driver') return "Acesso Entregador";
+      return "Acesso Restrito";
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300 relative">
+        <div className="bg-gray-900 p-8 text-center pt-10">
+           <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 backdrop-blur-sm">
+            <User size={32} className="text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">{getTitle()}</h2>
+          <p className="text-gray-400 text-sm mt-2">Área exclusiva para colaboradores</p>
+        </div>
+
+        <div className="p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User size={18} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none transition-all"
+                  placeholder="Seu usuário"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock size={18} className="text-gray-400" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none transition-all"
+                  placeholder="••••"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
+                <AlertTriangle size={16} />
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full py-3 text-lg group bg-gray-900 hover:bg-black text-white">
+              Entrar
+              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- NOVA VIEW: PEDIDO DO CLIENTE (SEM LOGIN) - NOVO VISUAL ---
 const CustomerOrderView = ({ products, onOrder }) => {
   const [cart, setCart] = useState([]);
   const [step, setStep] = useState('products');
   const [customerInfo, setCustomerInfo] = useState({ name: '', address: '', payment: 'Dinheiro' });
 
   const addToCart = (product) => {
-    // Proteção contra produto sem estoque
     if (product.stock <= 0) return alert("Produto sem estoque");
     const existing = cart.find(i => i.id === product.id);
     if (existing) {
@@ -305,6 +1284,8 @@ const CustomerOrderView = ({ products, onOrder }) => {
     }
   };
 
+  const removeFromCart = (id) => setCart(cart.filter(i => i.id !== id));
+  
   const updateQty = (id, delta) => {
     setCart(cart.map(item => {
       if (item.id === id) {
@@ -322,115 +1303,199 @@ const CustomerOrderView = ({ products, onOrder }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!customerInfo.name || !customerInfo.address) return alert("Preencha todos os campos!");
-    onOrder({ cart, total, customer: customerInfo });
+    
+    onOrder({
+      cart,
+      total,
+      customer: customerInfo
+    });
     setStep('success');
   };
 
   if (step === 'success') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={40} className="text-green-600" /></div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Pedido Recebido!</h2>
-          <p className="text-gray-600 mb-6">Logo sairá para entrega.</p>
-          <Button onClick={() => window.location.reload()} className="w-full bg-blue-600 text-white">Fazer Novo Pedido</Button>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md w-full animate-in zoom-in duration-300">
+          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <CheckCircle size={48} className="text-green-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-2">Pedido Recebido!</h2>
+          <p className="text-gray-600 mb-8 text-lg">Seu pedido foi enviado para nossa central e logo sairá para entrega.</p>
+          <Button onClick={() => window.location.reload()} className="w-full py-4 bg-blue-600 text-white hover:bg-blue-700 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all">
+            Fazer Novo Pedido
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white shadow-sm p-4 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto flex justify-between items-center">
-          <button onClick={step === 'checkout' ? () => setStep('products') : null} className={`text-gray-600 flex items-center gap-1 ${step !== 'checkout' ? 'invisible' : ''}`}>
-            <ChevronLeft size={20} /> Voltar
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <header className="bg-gradient-to-r from-red-700 to-blue-600 text-white shadow-lg sticky top-0 z-20">
+        <div className="max-w-3xl mx-auto p-4 flex justify-between items-center">
+          <button 
+            onClick={step === 'checkout' ? () => setStep('products') : null} 
+            className={`text-white/80 hover:text-white flex items-center gap-1 transition-opacity ${step !== 'checkout' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+          >
+            <ChevronLeft size={24} /> Voltar
           </button>
-          <h1 className="font-bold text-gray-800 text-lg">Pitangueiras Gás e Água</h1>
-          <div className="w-8"></div>
+          <div className="text-center">
+            <h1 className="font-bold text-xl tracking-tight leading-none">Pitangueiras</h1>
+            <p className="text-xs text-blue-100 font-medium tracking-wider uppercase">Gás e Água</p>
+          </div>
+          <div className="w-8"></div> {/* Spacer for alignment */}
         </div>
       </header>
 
-      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
+      <main className="flex-1 p-4 max-w-3xl mx-auto w-full pb-32">
         {step === 'products' ? (
           <>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Faça seu Pedido Online</h2>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Faça seu Pedido</h2>
+              <p className="text-gray-500">Selecione os produtos abaixo</p>
+            </div>
+
             {products.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">Carregando produtos ou estoque vazio...</div>
+                <div className="text-center py-20 text-gray-400">
+                  <Package size={48} className="mx-auto mb-4 opacity-20" />
+                  <p>Carregando produtos ou estoque vazio...</p>
+                </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-20">
-                {products.map(product => (
-                    <div key={product.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                    <div>
-                        {/* Proteção contra categoria undefined */}
-                        <span className={`text-xs font-bold px-2 py-1 rounded mb-2 inline-block ${product.category === 'gas' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {product.category ? product.category.toUpperCase() : 'GERAL'}
-                        </span>
-                        <h3 className="font-bold text-gray-800">{product.name}</h3>
-                        <p className="text-lg font-bold text-blue-600 mt-1">{formatCurrency(product.price)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                        {cart.find(i => i.id === product.id) ? (
-                        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                            <button onClick={() => updateQty(product.id, -1)} className="p-1 hover:bg-gray-200 rounded"><Minus size={16}/></button>
-                            <span className="font-bold w-4 text-center">{cart.find(i => i.id === product.id).quantity}</span>
-                            <button onClick={() => updateQty(product.id, 1)} className="p-1 hover:bg-gray-200 rounded"><Plus size={16}/></button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {products.map(product => {
+                    const isGas = product.category === 'gas';
+                    return (
+                        <div key={product.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 transition-all hover:shadow-md">
+                            <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${isGas ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                                {isGas ? <Flame size={32} /> : <Droplets size={32} />}
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">{product.name}</h3>
+                                <p className={`font-bold text-xl ${isGas ? 'text-red-600' : 'text-blue-600'}`}>
+                                    {formatCurrency(product.price)}
+                                </p>
+                            </div>
+                            <div className="flex flex-col items-end justify-center">
+                                {cart.find(i => i.id === product.id) ? (
+                                <div className="flex flex-col items-center bg-gray-50 rounded-lg p-1 border border-gray-200">
+                                    <button onClick={() => updateQty(product.id, 1)} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-green-600"><Plus size={18}/></button>
+                                    <span className="font-bold text-gray-800 text-lg py-1">{cart.find(i => i.id === product.id).quantity}</span>
+                                    <button onClick={() => updateQty(product.id, -1)} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-red-500"><Minus size={18}/></button>
+                                </div>
+                                ) : (
+                                <Button 
+                                    onClick={() => addToCart(product)} 
+                                    disabled={product.stock === 0} 
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center p-0 shadow-md transition-transform active:scale-95 ${isGas ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                >
+                                    <Plus size={24} className="text-white" />
+                                </Button>
+                                )}
+                            </div>
                         </div>
-                        ) : (
-                        <Button onClick={() => addToCart(product)} disabled={product.stock === 0} className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white">
-                            Adicionar
-                        </Button>
-                        )}
-                    </div>
-                    </div>
-                ))}
+                    );
+                })}
                 </div>
             )}
             
             {cart.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg">
-                <div className="max-w-3xl mx-auto flex justify-between items-center">
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-30">
+                <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Total do Pedido</p>
-                    <p className="text-xl font-bold text-gray-900">{formatCurrency(total)}</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total do Pedido</p>
+                    <p className="text-2xl font-bold text-gray-900">{formatCurrency(total)}</p>
                   </div>
-                  <Button onClick={() => setStep('checkout')} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-lg rounded-xl">
-                    Finalizar Pedido <ArrowRight size={20} className="ml-2"/>
+                  <Button 
+                    onClick={() => setStep('checkout')} 
+                    className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white font-bold text-lg rounded-xl shadow-lg shadow-green-200 flex items-center justify-center gap-2"
+                  >
+                    Finalizar <ArrowRight size={20} />
                   </Button>
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div className="animate-in slide-in-from-right">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Finalizar Pedido</h2>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-              <h3 className="font-bold text-gray-700 border-b pb-2 mb-4">Resumo</h3>
-              {cart.map(item => (
-                <div key={item.id} className="flex justify-between py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                  <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between mt-4 pt-2 border-t border-gray-100 font-bold text-lg">
-                <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+          <div className="animate-in slide-in-from-right duration-300">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Finalizar Pedido</h2>
+            
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+              <h3 className="font-bold text-gray-400 text-xs uppercase tracking-wide border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                <ShoppingBag size={14} /> Resumo da Compra
+              </h3>
+              <div className="space-y-3">
+                {cart.map(item => (
+                    <div key={item.id} className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <span className="bg-gray-100 text-gray-600 font-bold text-xs px-2 py-1 rounded">{item.quantity}x</span>
+                        <span className="text-gray-700 font-medium">{item.name}</span>
+                    </div>
+                    <span className="font-bold text-gray-900">{formatCurrency(item.price * item.quantity)}</span>
+                    </div>
+                ))}
+              </div>
+              <div className="flex justify-between mt-6 pt-4 border-t border-gray-100">
+                <span className="text-gray-500 font-medium">Total a Pagar</span>
+                <span className="text-2xl font-bold text-blue-600">{formatCurrency(total)}</span>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
-              <h3 className="font-bold text-gray-700 border-b pb-2 mb-2">Seus Dados</h3>
-              <input required type="text" placeholder="Nome Completo" className="w-full border p-2 rounded" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} />
-              <input required type="text" placeholder="Endereço de Entrega" className="w-full border p-2 rounded" value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} />
-              <div>
-                <label className="block text-sm mb-1">Pagamento</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Dinheiro', 'PIX', 'Cartão'].map(m => (
-                    <button key={m} type="button" onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`p-2 border rounded ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' : ''}`}>{m}</button>
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+              <h3 className="font-bold text-gray-400 text-xs uppercase tracking-wide border-b border-gray-100 pb-3 mb-2 flex items-center gap-2">
+                <User size={14} /> Dados de Entrega
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Seu Nome</label>
+                    <input 
+                    required
+                    type="text" 
+                    placeholder="Ex: Maria Silva"
+                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                    value={customerInfo.name}
+                    onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})}
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Endereço Completo</label>
+                    <input 
+                    required
+                    type="text" 
+                    placeholder="Rua, Número, Bairro e Complemento"
+                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                    value={customerInfo.address}
+                    onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})}
+                    />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Forma de Pagamento (Na Entrega)</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {['Dinheiro', 'PIX', 'Cartão'].map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setCustomerInfo({...customerInfo, payment: method})}
+                      className={`py-3 px-2 rounded-xl text-sm font-medium border-2 transition-all flex flex-col items-center justify-center gap-2 ${
+                        customerInfo.payment === method 
+                          ? 'bg-blue-50 border-blue-500 text-blue-700' 
+                          : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
+                      }`}
+                    >
+                      {method === 'Dinheiro' && <Banknote size={20} />}
+                      {method === 'PIX' && <Smartphone size={20} />}
+                      {method === 'Cartão' && <PaymentIcon size={20} />}
+                      {method}
+                    </button>
                   ))}
                 </div>
               </div>
-              <Button type="submit" className="w-full py-4 bg-green-600 text-white font-bold text-lg mt-4">Confirmar Pedido</Button>
+
+              <Button type="submit" className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold text-lg mt-4 rounded-xl shadow-lg shadow-green-200">
+                Confirmar Pedido
+              </Button>
             </form>
           </div>
         )}
@@ -439,136 +1504,7 @@ const CustomerOrderView = ({ products, onOrder }) => {
   );
 };
 
-const StaffLoginScreen = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const currentHash = window.location.hash;
-    if (currentHash === '#/admin') {
-        if (username === 'admin' && password === '1234') onLogin('admin');
-        else setError('Credenciais de Admin inválidas');
-    } else if (currentHash === '#/driver') {
-        if (username === 'entregador' && password === '1234') onLogin('entregador');
-        else setError('Credenciais de Entregador inválidas');
-    } else {
-        if (username === 'admin' && password === '1234') onLogin('admin');
-        else if (username === 'entregador' && password === '1234') onLogin('entregador');
-        else setError('Usuário inválido');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        <h2 className="text-2xl font-bold text-center mb-6">Acesso Restrito</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Usuário" className="w-full border p-2 rounded" value={username} onChange={e => setUsername(e.target.value)} />
-          <input type="password" placeholder="Senha" className="w-full border p-2 rounded" value={password} onChange={e => setPassword(e.target.value)} />
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <Button type="submit" className="w-full bg-slate-900 text-white">Entrar</Button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// ... Rest of components (POSView, InventoryView, etc.) should be included here as in previous versions. 
-// For brevity in this response, I'm assuming you paste the FULL previous code components here if missing. 
-// BUT to ensure it works "out of the box", I will include the missing View components below in condensed form.
-
-const POSView = ({ products, addToCart, cart, updateCartQuantity, removeFromCart, cartTotal, finalizeSale }) => {
-    // ... (Code from previous message)
-    // Placeholder to ensure file completeness
-    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-    const [isDelivery, setIsDelivery] = useState(false);
-    const [clientName, setClientName] = useState("");
-    const [deliveryAddress, setDeliveryAddress] = useState("");
-    const [searchTerm, setSearchTerm] = useState("");
-    
-    const filtered = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    return (
-        <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-2rem)]">
-            <div className="flex-1">
-                <input className="w-full border p-2 rounded mb-4" placeholder="Buscar..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} />
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto h-full pb-20">
-                    {filtered.map(p => (
-                        <div key={p.id} className="bg-white p-4 rounded shadow border cursor-pointer hover:border-blue-500" onClick={() => addToCart(p)}>
-                            <h4 className="font-bold">{p.name}</h4>
-                            <p className="text-blue-600 font-bold">{formatCurrency(p.price)}</p>
-                            <p className="text-xs text-gray-500">Est: {p.stock}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div className="w-full md:w-96 bg-white rounded shadow border flex flex-col">
-                <div className="p-4 border-b font-bold">Carrinho</div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                    {cart.map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                            <div><div className="font-medium">{item.name}</div><div className="text-xs">{formatCurrency(item.price)}</div></div>
-                            <div className="flex gap-2 items-center">
-                                <button onClick={()=>updateCartQuantity(item.id, -1)}>-</button>
-                                <span>{item.quantity}</span>
-                                <button onClick={()=>updateCartQuantity(item.id, 1)}>+</button>
-                                <button onClick={()=>removeFromCart(item.id)} className="text-red-500"><Trash2 size={14}/></button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="p-4 border-t">
-                    <div className="flex justify-between font-bold text-lg mb-4"><span>Total</span><span>{formatCurrency(cartTotal)}</span></div>
-                    {paymentModalOpen ? (
-                        <div className="space-y-2">
-                            <div className="flex gap-2 mb-2"><button onClick={()=>setIsDelivery(false)} className={`flex-1 p-1 rounded ${!isDelivery ? 'bg-blue-100' : ''}`}>Balcão</button><button onClick={()=>setIsDelivery(true)} className={`flex-1 p-1 rounded ${isDelivery ? 'bg-blue-100' : ''}`}>Entrega</button></div>
-                            {isDelivery && <><input placeholder="Cliente" className="w-full border p-1 rounded" value={clientName} onChange={e=>setClientName(e.target.value)} /><input placeholder="Endereço" className="w-full border p-1 rounded" value={deliveryAddress} onChange={e=>setDeliveryAddress(e.target.value)} /></>}
-                            <div className="grid grid-cols-2 gap-2">{['Dinheiro','PIX','Cartão'].map(m=><button key={m} onClick={() => finalizeSale(m, isDelivery, {client: clientName, address: deliveryAddress})} className="border p-2 rounded hover:bg-gray-50">{m}</button>)}</div>
-                            <button onClick={()=>setPaymentModalOpen(false)} className="w-full text-red-500 text-sm">Cancelar</button>
-                        </div>
-                    ) : <Button onClick={()=>setPaymentModalOpen(true)} className="w-full bg-green-600 text-white">Finalizar</Button>}
-                </div>
-            </div>
-        </div>
-    )
-};
-
-const InventoryView = ({ products, updateStock, updatePrice, handleAddProduct, isModalOpen, setIsModalOpen, newProduct, setNewProduct }) => {
-    return (
-        <div className="space-y-4">
-            <div className="flex justify-between"><h2 className="text-2xl font-bold">Estoque</h2><Button onClick={()=>setIsModalOpen(true)}><Plus size={16}/> Novo</Button></div>
-            <div className="bg-white rounded shadow overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50"><tr><th className="p-3">Produto</th><th className="p-3">Estoque</th><th className="p-3">Preço</th></tr></thead>
-                    <tbody>
-                        {products.map(p => (
-                            <tr key={p.id} className="border-t">
-                                <td className="p-3">{p.name}</td>
-                                <td className="p-3 flex gap-2 items-center"><button onClick={()=>updateStock(p.id, p.stock-1)}>-</button>{p.stock}<button onClick={()=>updateStock(p.id, p.stock+1)}>+</button></td>
-                                <td className="p-3"><input type="number" value={p.price} onChange={e=>updatePrice(p.id, e.target.value)} className="w-20 border rounded p-1" /></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-80 space-y-3">
-                        <h3 className="font-bold">Novo Produto</h3>
-                        <input placeholder="Nome" className="w-full border p-2" value={newProduct.name} onChange={e=>setNewProduct({...newProduct, name: e.target.value})} />
-                        <input type="number" placeholder="Preço" className="w-full border p-2" value={newProduct.price} onChange={e=>setNewProduct({...newProduct, price: e.target.value})} />
-                        <input type="number" placeholder="Estoque" className="w-full border p-2" value={newProduct.stock} onChange={e=>setNewProduct({...newProduct, stock: e.target.value})} />
-                        <div className="flex gap-2"><Button onClick={()=>setIsModalOpen(false)} variant="secondary">Cancelar</Button><Button onClick={handleAddProduct}>Salvar</Button></div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
-}
-
-// --- APP EXPORT ---
+// --- APLICAÇÃO PRINCIPAL ---
 
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || '#/');
@@ -587,6 +1523,11 @@ export default function App() {
   // Inventory State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'water', price: '', stock: '' });
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
+  const [fiscalModalOpen, setFiscalModalOpen] = useState(false);
+  const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState(null);
+  const [documentInput, setDocumentInput] = useState("");
+  const [isTransmitting, setIsTransmitting] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(window.location.hash || '#/');
@@ -620,6 +1561,8 @@ export default function App() {
   const handleLogin = (role) => {
     setIsAuthenticated(true);
     setUserRole(role);
+    if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin';
+    if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver';
     setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries');
   };
 
@@ -633,7 +1576,6 @@ export default function App() {
             type: 'entrega', status: 'pendente',
             address: orderData.customer.address, client: orderData.customer.name
         });
-        // Simplificado: atualizar estoque em loop
         for (const item of orderData.cart) {
             const p = products.find(prod => prod.id === item.id);
             if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
@@ -641,7 +1583,7 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
-  // Simplified Actions for Admin
+  // Actions for Admin
   const updateStock = async (id, val) => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {stock: parseInt(val)});
   const updatePrice = async (id, val) => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {price: parseFloat(val)});
   const handleAddProduct = async () => {
@@ -656,13 +1598,31 @@ export default function App() {
       });
       setCart([]);
   }
+  
+  const executeMoveToTrash = async () => {
+    if (!deleteConfirmationId) return;
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'products', deleteConfirmationId);
+    await updateDoc(ref, { deletedAt: new Date().toISOString() });
+    setDeleteConfirmationId(null);
+  };
+
+  const restoreFromTrash = async (id) => {
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'products', id);
+    await updateDoc(ref, { deletedAt: null });
+  };
+
+  const deletePermanently = async (id) => {
+    if(!window.confirm("Isso apagará o item permanentemente.")) return;
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'products', id);
+    await deleteDoc(ref);
+  };
 
   // Routing
   if (route === '#/admin') {
     if (!isAuthenticated || userRole !== 'admin') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
       <div className="flex h-screen bg-gray-50">
-        <aside className="w-64 bg-red-900 text-white p-6">
+        <aside className="w-64 bg-red-900 text-white p-6 hidden md:block">
             <h1 className="text-xl font-bold mb-8">Pitangueiras<br/>Admin</h1>
             <nav className="space-y-2">
                 {[
@@ -677,13 +1637,13 @@ export default function App() {
                 ))}
             </nav>
         </aside>
-        <main className="flex-1 p-8 overflow-auto">
+        <main className="flex-1 p-4 md:p-8 overflow-auto">
             {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
             {activeTab === 'pos' && <POSView products={products} cart={cart} setCart={setCart} cartTotal={cart.reduce((a,i)=>a+i.price*i.quantity,0)} finalizeSale={finalizeSale} addToCart={(p)=>setCart([...cart, {...p, quantity:1}])} updateCartQuantity={(id, d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: i.quantity+d}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} />}
-            {activeTab === 'inventory' && <InventoryView products={products} updateStock={updateStock} updatePrice={updatePrice} handleAddProduct={handleAddProduct} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} />}
+            {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={(id) => setDeleteConfirmationId(id)} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
             {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} />}
             {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="admin" />}
-            {activeTab === 'fiscal' && <FiscalView invoices={invoices} sales={sales} appId={appId} />}
+            {activeTab === 'fiscal' && <FiscalView invoices={invoices} setInvoices={setInvoices} sales={sales} setFiscalModalOpen={setFiscalModalOpen} fiscalModalOpen={fiscalModalOpen} selectedSaleForInvoice={selectedSaleForInvoice} setSelectedSaleForInvoice={setSelectedSaleForInvoice} documentInput={documentInput} setDocumentInput={setDocumentInput} handleEmitInvoice={handleEmitInvoice} isTransmitting={isTransmitting} appId={appId} />}
         </main>
       </div>
     );
@@ -693,14 +1653,14 @@ export default function App() {
     if (!isAuthenticated || userRole !== 'entregador') return <StaffLoginScreen onLogin={handleLogin} />;
     return (
         <div className="flex h-screen bg-gray-50">
-            <aside className="w-64 bg-blue-900 text-white p-6">
+            <aside className="w-64 bg-blue-900 text-white p-6 hidden md:block">
                 <h1 className="text-xl font-bold mb-8">Entregas</h1>
                 <nav className="space-y-2">
                     <button onClick={()=>setActiveTab('deliveries')} className={`flex gap-3 w-full p-2 rounded ${activeTab==='deliveries'?'bg-orange-500':''}`}><Truck/> Entregas</button>
                     <button onClick={()=>setActiveTab('sales')} className={`flex gap-3 w-full p-2 rounded ${activeTab==='sales'?'bg-orange-500':''}`}><History/> Histórico</button>
                 </nav>
             </aside>
-            <main className="flex-1 p-8 overflow-auto">
+            <main className="flex-1 p-4 md:p-8 overflow-auto">
                 {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'})} />}
                 {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="entregador" />}
             </main>
