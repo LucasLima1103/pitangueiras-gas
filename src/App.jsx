@@ -68,7 +68,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Define um ID padrão para o app
 const appId = 'pitangueiras-gas-app';
 
 // --- HELPERS E COMPONENTES AUXILIARES ---
@@ -1305,84 +1304,51 @@ const FiscalView = ({ invoices, setInvoices, sales, setFiscalModalOpen, fiscalMo
   );
 };
 
-// --- NEW COMPONENT: WELCOME SCREEN ---
-const WelcomeScreen = ({ onCustomerEnter, onStaffEnter }) => {
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
-        <div className="bg-gradient-to-r from-red-700 to-blue-600 p-12 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-full mb-6 backdrop-blur-sm">
-            <Flame size={40} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Pitangueiras<br/>Gás e Água</h1>
-          <p className="text-white/90">Bem-vindo!</p>
-        </div>
-
-        <div className="p-8 space-y-4">
-          <button 
-            onClick={onCustomerEnter}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 group"
-          >
-            <ShoppingBag size={24} />
-            Fazer Pedido Agora
-            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-gray-200"></div>
-            <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase">Área Restrita</span>
-            <div className="flex-grow border-t border-gray-200"></div>
-          </div>
-
-          <button 
-            onClick={onStaffEnter}
-            className="w-full py-3 bg-white border-2 border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
-          >
-            <Lock size={18} />
-            Sou Colaborador
-          </button>
-        </div>
-        
-        <div className="bg-gray-50 p-4 text-center text-xs text-gray-400 border-t border-gray-100">
-          © 2024 Pitangueiras Distribuidora
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // --- MODIFIED COMPONENT: STAFF LOGIN SCREEN (Previously LoginScreen) ---
-const StaffLoginScreen = ({ onLogin, onBack }) => {
+const StaffLoginScreen = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (username === 'admin' && password === '1234') {
-      onLogin('admin');
-    } else if (username === 'entregador' && password === '1234') {
-      onLogin('entregador');
+    // Identificar a rota atual para validar o login correto
+    const currentHash = window.location.hash;
+    
+    if (currentHash === '#/admin') {
+        if (username === 'admin' && password === '1234') {
+            onLogin('admin');
+        } else {
+            setError('Credenciais de Administrador inválidas');
+        }
+    } else if (currentHash === '#/driver') {
+        if (username === 'entregador' && password === '1234') {
+            onLogin('entregador');
+        } else {
+            setError('Credenciais de Entregador inválidas');
+        }
     } else {
-      setError('Usuário ou senha inválidos');
+        // Fallback genérico caso a rota esteja estranha
+        if (username === 'admin' && password === '1234') onLogin('admin');
+        else if (username === 'entregador' && password === '1234') onLogin('entregador');
+        else setError('Usuário ou senha inválidos');
     }
+  };
+
+  const getTitle = () => {
+      if (window.location.hash === '#/admin') return "Acesso Administrativo";
+      if (window.location.hash === '#/driver') return "Acesso Entregador";
+      return "Acesso Restrito";
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300 relative">
-        <button 
-          onClick={onBack}
-          className="absolute top-4 left-4 text-white/80 hover:text-white z-10 flex items-center gap-1 text-sm font-medium"
-        >
-          <ChevronLeft size={16} /> Voltar
-        </button>
-
-        <div className="bg-gray-900 p-8 text-center pt-16">
+        <div className="bg-gray-900 p-8 text-center pt-10">
            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 backdrop-blur-sm">
             <User size={32} className="text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Acesso Restrito</h2>
+          <h2 className="text-2xl font-bold text-white">{getTitle()}</h2>
           <p className="text-gray-400 text-sm mt-2">Área exclusiva para colaboradores</p>
         </div>
 
@@ -1399,7 +1365,7 @@ const StaffLoginScreen = ({ onLogin, onBack }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none transition-all"
-                  placeholder="admin ou entregador"
+                  placeholder="Seu usuário"
                 />
               </div>
             </div>
@@ -1439,7 +1405,7 @@ const StaffLoginScreen = ({ onLogin, onBack }) => {
 };
 
 // --- NOVA VIEW: PEDIDO DO CLIENTE (SEM LOGIN) ---
-const CustomerOrderView = ({ products, onOrder, onBack }) => {
+const CustomerOrderView = ({ products, onOrder }) => {
   const [cart, setCart] = useState([]);
   const [step, setStep] = useState('products'); // 'products', 'checkout', 'success'
   const [customerInfo, setCustomerInfo] = useState({ name: '', address: '', payment: 'Dinheiro' });
@@ -1490,8 +1456,8 @@ const CustomerOrderView = ({ products, onOrder, onBack }) => {
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Pedido Recebido!</h2>
           <p className="text-gray-600 mb-6">Seu pedido foi enviado para nossa central e logo sairá para entrega.</p>
-          <Button onClick={onBack} className="w-full py-3 bg-blue-600 text-white hover:bg-blue-700">
-            Voltar ao Início
+          <Button onClick={() => window.location.reload()} className="w-full py-3 bg-blue-600 text-white hover:bg-blue-700">
+            Fazer Novo Pedido
           </Button>
         </div>
       </div>
@@ -1502,7 +1468,7 @@ const CustomerOrderView = ({ products, onOrder, onBack }) => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white shadow-sm p-4 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto flex justify-between items-center">
-          <button onClick={step === 'checkout' ? () => setStep('products') : onBack} className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+          <button onClick={step === 'checkout' ? () => setStep('products') : null} className={`text-gray-600 hover:text-gray-900 flex items-center gap-1 ${step !== 'checkout' ? 'invisible' : ''}`}>
             <ChevronLeft size={20} /> Voltar
           </button>
           <h1 className="font-bold text-gray-800 text-lg">Pitangueiras Gás e Água</h1>
@@ -1624,7 +1590,7 @@ const CustomerOrderView = ({ products, onOrder, onBack }) => {
 // --- APLICAÇÃO PRINCIPAL ---
 
 export default function App() {
-  const [viewMode, setViewMode] = useState('welcome'); // Changed default to 'welcome'
+  const [route, setRoute] = useState(window.location.hash || '#/');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1647,9 +1613,25 @@ export default function App() {
   const [documentInput, setDocumentInput] = useState("");
   const [isTransmitting, setIsTransmitting] = useState(false);
 
+  // --- ROTA LISTENER ---
+  useEffect(() => {
+    const handleHashChange = () => {
+      const currentHash = window.location.hash || '#/';
+      setRoute(currentHash);
+    };
+    
+    // Set initial route if empty
+    if (!window.location.hash) {
+        window.history.replaceState(null, '', '#/');
+        setRoute('#/');
+    }
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   // --- FIREBASE: AUTH & DATA SYNC ---
   useEffect(() => {
-    // 1. Inicializar Auth
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token);
@@ -1666,7 +1648,6 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    // 2. Sincronizar Coleções em Tempo Real
     const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
     const salesRef = collection(db, 'artifacts', appId, 'public', 'data', 'sales');
     const customersRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
@@ -1681,7 +1662,6 @@ export default function App() {
     }, (err) => console.error("Err products", err));
 
     const unsubSales = onSnapshot(salesRef, (snap) => {
-      // Ordenar por data (mais recente primeiro)
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
       setSales(data);
@@ -1705,17 +1685,20 @@ export default function App() {
 
   // -- Login Handler --
   const handleLogin = (role) => {
-    // Login visual (Mock)
     setIsAuthenticated(true);
     setUserRole(role);
-    setViewMode('admin'); 
+    
+    // Redireciona se estiver na rota errada, mas geralmente já está na certa
+    if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin';
+    if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver';
+
     setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserRole('admin');
-    setViewMode('welcome'); // Logout returns to welcome screen
+    // Mantém na mesma rota para mostrar o login novamente
     setActiveTab('dashboard');
   };
 
@@ -1723,7 +1706,6 @@ export default function App() {
   const handleCustomerOrder = async (orderData) => {
     if (!user) return;
     
-    // 1. Criar Venda
     const newSale = {
       date: new Date().toISOString(),
       total: orderData.total,
@@ -1738,7 +1720,6 @@ export default function App() {
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), newSale);
 
-      // 2. Atualizar Estoque
       for (const item of orderData.cart) {
         const product = products.find(p => p.id === item.id);
         if (product) {
@@ -1754,8 +1735,7 @@ export default function App() {
   };
 
   // -- LOGIC: Actions (Firestore) --
-
-  // Carrinho Local
+  // ... (Mesma lógica de carrinho e ações)
   const addToCart = (product) => {
     if (product.stock <= 0) return alert("Produto sem estoque!");
     const existing = cart.find(i => i.id === product.id);
@@ -1796,14 +1776,11 @@ export default function App() {
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), newSale);
-      
-      // Atualizar Estoque
       for (const item of cart) {
         const productRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', item.id);
         const p = products.find(p => p.id === item.id);
         if (p) await updateDoc(productRef, { stock: p.stock - item.quantity });
       }
-      
       setCart([]);
       alert(isDelivery ? "Pedido enviado para entrega!" : "Venda realizada com sucesso!");
     } catch (e) {
@@ -1835,7 +1812,7 @@ export default function App() {
         category: newProduct.category,
         price: parseFloat(newProduct.price),
         stock: parseInt(newProduct.stock),
-        deletedAt: null // Não deletado
+        deletedAt: null 
       });
       setIsModalOpen(false);
       setNewProduct({ name: '', category: 'water', price: '', stock: '' });
@@ -1868,169 +1845,102 @@ export default function App() {
     alert("Nota Fiscal autorizada com sucesso pela SEFAZ (Simulação)!");
   };
 
-  // -- RENDERIZAÇÃO --
+  // -- RENDERIZAÇÃO BASEADA NA ROTA --
 
-  // Initial Router Logic
-  if (viewMode === 'welcome') {
+  // 1. Rota de Admin
+  if (route === '#/admin') {
+    if (!isAuthenticated || userRole !== 'admin') {
+      return <StaffLoginScreen onLogin={handleLogin} />;
+    }
+    // Admin Dashboard Render
+    const menuItems = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'pos', label: 'Vender (PDV)', icon: ShoppingCart },
+      { id: 'inventory', label: 'Estoque', icon: Package },
+      { id: 'customers', label: 'Clientes', icon: Users },
+      { id: 'sales', label: 'Histórico', icon: History },
+      { id: 'fiscal', label: 'Notas Fiscais', icon: FileText },
+    ];
+
     return (
-      <WelcomeScreen 
-        onCustomerEnter={() => setViewMode('customer')} 
-        onStaffEnter={() => setViewMode('login')} 
-      />
-    );
-  }
-
-  if (viewMode === 'login') {
-    return (
-      <StaffLoginScreen 
-        onLogin={handleLogin} 
-        onBack={() => setViewMode('welcome')} 
-      />
-    );
-  }
-
-  if (viewMode === 'customer') {
-    return <CustomerOrderView products={products} onOrder={handleCustomerOrder} onBack={() => setViewMode('welcome')} />;
-  }
-
-  const menuItems = userRole === 'admin' 
-    ? [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'pos', label: 'Vender (PDV)', icon: ShoppingCart },
-        { id: 'inventory', label: 'Estoque', icon: Package },
-        { id: 'customers', label: 'Clientes', icon: Users },
-        { id: 'sales', label: 'Histórico', icon: History },
-        { id: 'fiscal', label: 'Notas Fiscais', icon: FileText },
-      ]
-    : [
-        { id: 'deliveries', label: 'Entregas', icon: Truck },
-        { id: 'sales', label: 'Histórico', icon: History },
-      ];
-
-  return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
-      <aside className="w-20 lg:w-64 bg-red-900 text-white flex flex-col transition-all duration-300 flex-shrink-0">
-        <div className="p-4 lg:p-6 flex items-center gap-3 justify-center lg:justify-start border-b border-red-800">
-          <div className="bg-white/10 p-2 rounded-lg">
-            <Flame size={24} className="text-white" />
+      <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+        <aside className="w-20 lg:w-64 bg-red-900 text-white flex flex-col transition-all duration-300 flex-shrink-0">
+          <div className="p-4 lg:p-6 flex items-center gap-3 justify-center lg:justify-start border-b border-red-800">
+            <div className="bg-white/10 p-2 rounded-lg"><Flame size={24} className="text-white" /></div>
+            <span className="text-lg font-bold hidden lg:block tracking-tight leading-tight">Pitangueiras<br/>Admin</span>
           </div>
-          <span className="text-lg font-bold hidden lg:block tracking-tight leading-tight">Pitangueiras<br/>Gás e Água</span>
-        </div>
-
-        <nav className="flex-1 py-6 px-2 lg:px-4 space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
-                activeTab === item.id 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
-                  : 'text-red-100 hover:bg-red-800 hover:text-white'
-              }`}
-            >
-              <item.icon size={22} className="min-w-[22px]" />
-              <span className="hidden lg:block font-medium">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-red-800">
-          <div className="bg-red-800 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-red-200">Usuário Logado</span>
-              <button onClick={handleLogout} className="text-red-300 hover:text-white transition-colors" title="Sair">
-                <LogOut size={14} />
+          <nav className="flex-1 py-6 px-2 lg:px-4 space-y-2">
+            {menuItems.map((item) => (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-red-100 hover:bg-red-800'}`}>
+                <item.icon size={22} className="min-w-[22px]" />
+                <span className="hidden lg:block font-medium">{item.label}</span>
               </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-red-700 text-xs ${userRole === 'admin' ? 'bg-white' : 'bg-red-200'}`}>
-                {userRole === 'admin' ? 'AD' : 'EN'}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-white capitalize">{userRole}</span>
-              </div>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-red-800">
+            <div className="bg-red-800 rounded-lg p-3 flex justify-between items-center">
+              <div className="flex items-center gap-2"><User size={14} /><span className="text-sm font-bold">Admin</span></div>
+              <button onClick={handleLogout}><LogOut size={16} /></button>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+        <main className="flex-1 overflow-auto">
+          <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+            {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
+            {activeTab === 'pos' && <POSView products={products} addToCart={addToCart} cart={cart} updateCartQuantity={updateCartQuantity} removeFromCart={removeFromCart} cartTotal={cartTotal} finalizeSale={finalizeSale} />}
+            {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={(id) => setDeleteConfirmationId(id)} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
+            {activeTab === 'fiscal' && <FiscalView invoices={invoices} setInvoices={setInvoices} sales={sales} setFiscalModalOpen={setFiscalModalOpen} fiscalModalOpen={fiscalModalOpen} selectedSaleForInvoice={selectedSaleForInvoice} setSelectedSaleForInvoice={setSelectedSaleForInvoice} documentInput={documentInput} setDocumentInput={setDocumentInput} handleEmitInvoice={handleEmitInvoice} isTransmitting={isTransmitting} appId={appId} />}
+            {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} userId={user ? user.uid : 'anon'} />}
+            {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole={userRole} />}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-      <main className="flex-1 overflow-auto">
-        <header className="bg-white shadow-sm border-b border-gray-200 p-4 lg:p-6 sticky top-0 z-10 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800 capitalize">
-            {activeTab === 'pos' ? 'Ponto de Venda' : activeTab === 'sales' ? 'Relatórios' : activeTab === 'deliveries' ? 'Central de Entregas' : activeTab === 'fiscal' ? 'Notas Fiscais' : activeTab === 'customers' ? 'Gestão de Clientes' : activeTab}
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-800 capitalize">{userRole}</p>
-              <p className="text-xs text-gray-500">Pitangueiras Gás e Água</p>
-            </div>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${userRole === 'admin' ? 'bg-red-600' : 'bg-blue-600'}`}>
-              {userRole === 'admin' ? 'AD' : 'EN'}
+  // 2. Rota de Motorista
+  if (route === '#/driver') {
+    if (!isAuthenticated || userRole !== 'entregador') {
+      return <StaffLoginScreen onLogin={handleLogin} />;
+    }
+    // Driver Dashboard Render
+    const menuItems = [
+      { id: 'deliveries', label: 'Entregas', icon: Truck },
+      { id: 'sales', label: 'Histórico', icon: History },
+    ];
+
+    return (
+      <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+        <aside className="w-20 lg:w-64 bg-blue-900 text-white flex flex-col transition-all duration-300 flex-shrink-0">
+          <div className="p-4 lg:p-6 flex items-center gap-3 justify-center lg:justify-start border-b border-blue-800">
+            <div className="bg-white/10 p-2 rounded-lg"><Truck size={24} className="text-white" /></div>
+            <span className="text-lg font-bold hidden lg:block tracking-tight leading-tight">Pitangueiras<br/>Entregas</span>
+          </div>
+          <nav className="flex-1 py-6 px-2 lg:px-4 space-y-2">
+            {menuItems.map((item) => (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-orange-500 text-white shadow-lg' : 'text-blue-100 hover:bg-blue-800'}`}>
+                <item.icon size={22} className="min-w-[22px]" />
+                <span className="hidden lg:block font-medium">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-blue-800">
+            <div className="bg-blue-800 rounded-lg p-3 flex justify-between items-center">
+              <div className="flex items-center gap-2"><User size={14} /><span className="text-sm font-bold">Motorista</span></div>
+              <button onClick={handleLogout}><LogOut size={16} /></button>
             </div>
           </div>
-        </header>
+        </aside>
+        <main className="flex-1 overflow-auto">
+          <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+            {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={markAsDelivered} />}
+            {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole={userRole} />}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
-          {userRole === 'admin' && activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
-          {userRole === 'admin' && activeTab === 'pos' && 
-            <POSView 
-              products={products} 
-              addToCart={addToCart} 
-              cart={cart} 
-              updateCartQuantity={updateCartQuantity} 
-              removeFromCart={removeFromCart} 
-              cartTotal={cartTotal} 
-              finalizeSale={finalizeSale} 
-            />}
-          {userRole === 'admin' && activeTab === 'inventory' && 
-            <InventoryView 
-              showTrash={showTrash}
-              setShowTrash={setShowTrash}
-              activeTrash={trash} // Trash agora vem do DB
-              products={products}
-              updateStock={updateStock}
-              updatePrice={updatePrice}
-              moveToTrash={(id) => setDeleteConfirmationId(id)}
-              restoreFromTrash={restoreFromTrash}
-              deletePermanently={deletePermanently}
-              setDeleteConfirmationId={setDeleteConfirmationId}
-              isModalOpen={isModalOpen}
-              setIsModalOpen={setIsModalOpen}
-              newProduct={newProduct}
-              setNewProduct={setNewProduct}
-              handleAddProduct={handleAddProduct}
-              deleteConfirmationId={deleteConfirmationId}
-              executeMoveToTrash={executeMoveToTrash}
-            />}
-          {userRole === 'admin' && activeTab === 'fiscal' && 
-            <FiscalView 
-              invoices={invoices}
-              setInvoices={setInvoices}
-              sales={sales}
-              setFiscalModalOpen={setFiscalModalOpen}
-              fiscalModalOpen={fiscalModalOpen}
-              selectedSaleForInvoice={selectedSaleForInvoice}
-              setSelectedSaleForInvoice={setSelectedSaleForInvoice}
-              documentInput={documentInput}
-              setDocumentInput={setDocumentInput}
-              handleEmitInvoice={handleEmitInvoice}
-              isTransmitting={isTransmitting}
-              appId={appId}
-            />}
-          
-          {userRole === 'admin' && activeTab === 'customers' && (
-            <CustomersView 
-              customers={customers} 
-              appId={appId}
-              userId={user ? user.uid : 'anon'}
-            />
-          )}
-          
-          {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole={userRole} />}
-          
-          {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={markAsDelivered} />}
-        </div>
-      </main>
-    </div>
-  );
+  // 3. Rota Padrão (Cliente)
+  return <CustomerOrderView products={products} onOrder={handleCustomerOrder} />;
 }
