@@ -47,7 +47,7 @@ import {
   getAuth, 
   signInWithCustomToken, 
   signInAnonymously, 
-  signInWithEmailAndPassword, // Adicionado
+  signInWithEmailAndPassword, 
   onAuthStateChanged,
   signOut 
 } from "firebase/auth";
@@ -642,22 +642,35 @@ const StaffLoginScreen = ({ onLogin, drivers = [] }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    
     const hash = window.location.hash;
     
-    // Admin Check
+    // Admin Check (Firebase Auth - Email Priority)
+    if (username.includes('@')) {
+        try {
+            await signInWithEmailAndPassword(auth, username, password);
+            if(hash !== '#/admin') window.location.hash = '#/admin';
+            onLogin('admin');
+            return;
+        } catch (err) {
+            console.log("Tentativa de auth admin falhou, verificando drivers...", err);
+        }
+    }
+    
+    // Entregador Check (Firestore)
+    const driver = drivers.find(d => d.username === username && d.password === password);
+    if (driver) {
+        if(hash !== '#/driver') window.location.hash = '#/driver';
+        onLogin('entregador');
+        return;
+    }
+
     if (username === 'admin' && password === '1234') {
         if(hash !== '#/admin') window.location.hash = '#/admin';
         onLogin('admin');
-        return;
-    }
-    
-    // Entregador Check
-    const driver = drivers.find(d => d.username === username && d.password === password);
-    if (driver || (username === 'entregador' && password === '1234')) {
-        if(hash !== '#/driver') window.location.hash = '#/driver';
-        onLogin('entregador');
         return;
     }
     
@@ -668,7 +681,7 @@ const StaffLoginScreen = ({ onLogin, drivers = [] }) => {
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8">
         <div className="text-center mb-8"><div className="inline-flex p-4 bg-gray-100 rounded-full mb-4"><User size={32}/></div><h2 className="text-2xl font-bold">Acesso Restrito</h2></div>
-        <form onSubmit={handleSubmit} className="space-y-6"><input className="w-full border p-3 rounded" placeholder="Usuário" value={username} onChange={e => setUsername(e.target.value)} /><input type="password" className="w-full border p-3 rounded" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} />{error && <p className="text-red-500 text-sm">{error}</p>}<Button type="submit" className="w-full bg-slate-900 text-white py-3">Entrar</Button></form>
+        <form onSubmit={handleSubmit} className="space-y-6"><input className="w-full border p-3 rounded" placeholder="E-mail ou Usuário" value={username} onChange={e => setUsername(e.target.value)} /><input type="password" className="w-full border p-3 rounded" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} />{error && <p className="text-red-500 text-sm">{error}</p>}<Button type="submit" className="w-full bg-slate-900 text-white py-3">Entrar</Button></form>
       </div>
     </div>
   );
@@ -833,71 +846,37 @@ export default function App() {
       if (auth && !auth.currentUser) signInAnonymously(auth); 
       if (auth) onAuthStateChanged(auth, (u) => {
           setUser(u);
-          // Verificação de Admin por Email
-          if (u && u.email === 'fernando@pitangueirasgas.com') {
+          if(u && u.email === 'fernando@pitangueirasgas.com' && window.location.hash === '#/admin') {
               setIsAuthenticated(true);
               setUserRole('admin');
-              if (window.location.hash !== '#/admin') window.location.hash = '#/admin';
-              setActiveTab('dashboard');
           }
       }); 
   }, []);
 
   useEffect(() => {
     if (!user || !db) return;
-const StaffLoginScreen = ({ onLogin, drivers = [] }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const hash = window.location.hash;
-    
-    // Admin Check via Email (Firebase Auth)
-    if (username === 'fernando@pitangueirasgas.com') {
-        try {
-            await signInWithEmailAndPassword(auth, username, password);
-            if(hash !== '#/admin') window.location.hash = '#/admin';
-            onLogin('admin');
-            return;
-        } catch (err) {
-            setError('Erro de login: Verifique senha ou internet.');
-            return;
-        }
-    }
-    
-    // Admin Check (Legacy/Fallback)
-    if (username === 'admin' && password === '1234') {
-        if(hash !== '#/admin') window.location.hash = '#/admin';
-        onLogin('admin');
-        return;
-    }
-    
-    // Entregador Check
-    const driver = drivers.find(d => d.username === username && d.password === password);
-    if (driver || (username === 'entregador' && password === '1234')) {
-        if(hash !== '#/driver') window.location.hash = '#/driver';
-        onLogin('entregador');
-        return;
-    }
-    
-    setError('Credenciais inválidas');
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8">
-        <div className="text-center mb-8"><div className="inline-flex p-4 bg-gray-100 rounded-full mb-4"><User size={32}/></div><h2 className="text-2xl font-bold">Acesso Restrito</h2></div>
-        <form onSubmit={handleSubmit} className="space-y-6"><input className="w-full border p-3 rounded" placeholder="E-mail ou Usuário" value={username} onChange={e => setUsername(e.target.value)} /><input type="password" className="w-full border p-3 rounded" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} />{error && <p className="text-red-500 text-sm">{error}</p>}<Button type="submit" className="w-full bg-slate-900 text-white py-3">Entrar</Button></form>
-      </div>
-    </div>
-  );
-};
+    const unsubP = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), s => {
+      const d = s.docs.map(x => ({id:x.id, ...x.data()}));
+      setProducts(d.filter(p => !p.deletedAt));
+      setTrash(d.filter(p => p.deletedAt));
+    });
+    const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), s => setSales(s.docs.map(x => ({id:x.id, ...x.data()})).sort((a,b) => new Date(b.date)-new Date(a.date))));
+    const unsubC = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), s => setCustomers(s.docs.map(x => ({id:x.id, ...x.data()}))));
+    const unsubD = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), s => setDrivers(s.docs.map(x => ({id:x.id, ...x.data()}))));
+    return () => { unsubP(); unsubS(); unsubC(); unsubD(); };
   }, [user]);
 
   const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin'; if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver'; setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
-  const handleLogout = () => { setIsAuthenticated(false); };
+  
+  const handleLogout = async () => { 
+      setIsAuthenticated(false); 
+      try {
+        await signOut(auth); // Sair do Firebase Auth
+        await signInAnonymously(auth);
+      } catch(e) { console.error(e) }
+      // Agora, permanecemos na rota atual (Admin ou Driver), mas como setIsAuthenticated é false,
+      // o componente renderizará automaticamente a tela de login.
+  };
 
   const handleCustomerOrder = async (data) => {
     if (!db) return;
@@ -906,7 +885,6 @@ const StaffLoginScreen = ({ onLogin, drivers = [] }) => {
             date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
         });
         
-        // Save ID to local storage for tracking
         localStorage.setItem('activeOrderId', docRef.id);
         setActiveOrderId(docRef.id);
 
