@@ -39,7 +39,7 @@ import {
   Menu,
   Navigation,
   Map,
-  UserCog // Novo ícone para Gestão de Entregadores
+  UserCog 
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -803,7 +803,6 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
-  
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -816,7 +815,11 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'water', price: '', stock: '' });
   const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
+
+  // Mobile Menu State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Customer Active Order State (Persistent)
   const [activeOrderId, setActiveOrderId] = useState(() => localStorage.getItem('activeOrderId') || null);
 
   useEffect(() => {
@@ -841,20 +844,30 @@ export default function App() {
   }, [user]);
 
   const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin'; if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver'; setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
-  const handleLogout = () => { setIsAuthenticated(false); window.location.hash = '#/'; };
+  const handleLogout = () => { setIsAuthenticated(false); };
 
   const handleCustomerOrder = async (data) => {
     if (!db) return;
-    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
-      date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
-    });
-    localStorage.setItem('activeOrderId', docRef.id);
-    setActiveOrderId(docRef.id);
-    for (const item of data.cart) {
-        const p = products.find(prod => prod.id === item.id);
-        if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
-    }
+    try {
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
+            date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
+        });
+        
+        // Save ID to local storage for tracking
+        localStorage.setItem('activeOrderId', docRef.id);
+        setActiveOrderId(docRef.id);
+
+        for (const item of data.cart) {
+            const p = products.find(prod => prod.id === item.id);
+            if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
+        }
+    } catch(e) { console.error(e); }
   };
+
+  const handleNewOrder = () => {
+      localStorage.removeItem('activeOrderId');
+      setActiveOrderId(null);
+  }
 
   const updateStock = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {stock: parseInt(val)}); };
   const updatePrice = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {price: parseFloat(val)}); };
@@ -950,6 +963,6 @@ export default function App() {
     );
   }
 
-  if (activeOrderId) return <CustomerTracking orderId={activeOrderId} sales={sales} onNewOrder={() => { localStorage.removeItem('activeOrderId'); setActiveOrderId(null); }} />;
+  if (activeOrderId) return <CustomerTracking orderId={activeOrderId} sales={sales} onNewOrder={handleNewOrder} />;
   return <CustomerOrderView products={products} onOrder={handleCustomerOrder} />;
 }
