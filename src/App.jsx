@@ -37,8 +37,9 @@ import {
   Banknote,
   Smartphone,
   Menu,
-  Navigation, // Novo ícone para Rota
-  Map // Novo ícone para Mapa
+  Navigation,
+  Map,
+  UserCog // Novo ícone para Gestão de Entregadores
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -147,6 +148,101 @@ const Button = ({ children, onClick, variant = 'primary', className = "", disabl
 };
 
 // --- VIEWS ---
+
+const DriversView = ({ drivers, appId }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newDriver, setNewDriver] = useState({ name: '', username: '', password: '' });
+
+  const handleAddDriver = async () => {
+    if (!newDriver.name || !newDriver.username || !newDriver.password) return alert("Preencha todos os campos");
+    
+    // Verifica se já existe o usuário
+    if (drivers.some(d => d.username === newDriver.username)) return alert("Este nome de usuário já existe");
+
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), newDriver);
+      setIsModalOpen(false);
+      setNewDriver({ name: '', username: '', password: '' });
+      alert("Entregador cadastrado com sucesso!");
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteDriver = async (id) => {
+    if(confirm('Remover este entregador?')) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', id));
+      } catch(e) { console.error(e); }
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <UserCog className="text-blue-600" /> Gestão de Entregadores
+        </h2>
+        <Button onClick={() => setIsModalOpen(true)} variant="primary">
+          <Plus size={18} /> Novo Entregador
+        </Button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-gray-500">
+            <tr>
+              <th className="p-4">Nome</th>
+              <th className="p-4">Usuário de Acesso</th>
+              <th className="p-4">Senha</th>
+              <th className="p-4 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {drivers.length === 0 ? (
+              <tr><td colSpan="4" className="p-8 text-center text-gray-400">Nenhum entregador cadastrado além do padrão.</td></tr>
+            ) : (
+              drivers.map(driver => (
+                <tr key={driver.id} className="hover:bg-gray-50">
+                  <td className="p-4 font-medium text-gray-800">{driver.name}</td>
+                  <td className="p-4 text-gray-600">{driver.username}</td>
+                  <td className="p-4 text-gray-400">••••••</td>
+                  <td className="p-4 text-center">
+                    <button onClick={() => handleDeleteDriver(driver.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl w-96 space-y-4">
+            <h3 className="font-bold text-lg">Novo Entregador</h3>
+            <div>
+              <label className="text-sm text-gray-600">Nome Completo</label>
+              <input className="w-full border p-2 rounded mt-1" value={newDriver.name} onChange={e => setNewDriver({...newDriver, name: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600">Usuário de Login</label>
+              <input className="w-full border p-2 rounded mt-1" value={newDriver.username} onChange={e => setNewDriver({...newDriver, username: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600">Senha</label>
+              <input className="w-full border p-2 rounded mt-1" type="password" value={newDriver.password} onChange={e => setNewDriver({...newDriver, password: e.target.value})} />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={() => setIsModalOpen(false)} variant="secondary" className="flex-1">Cancelar</Button>
+              <Button onClick={handleAddDriver} className="flex-1">Salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const CustomersView = ({ customers, appId }) => {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -271,7 +367,6 @@ const DashboardView = ({ sales, products }) => {
   const revenueToday = salesToday.reduce((acc, s) => acc + (s.total || 0), 0);
   const lowStockItems = products.filter(p => p.stock < 15);
   
-  // Active deliveries for dashboard
   const activeDeliveries = sales.filter(s => s.status === 'em_rota');
 
   return (
@@ -297,7 +392,6 @@ const DashboardView = ({ sales, products }) => {
         </Card>
       </div>
 
-      {/* RASTREAMENTO EM TEMPO REAL NO DASHBOARD DO ADMIN */}
       {activeDeliveries.length > 0 && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -496,9 +590,7 @@ const DeliveriesView = ({ sales, updateStatus, markAsDelivered }) => {
   const pending = sales.filter(s => s.type === 'entrega' && (s.status === 'pendente' || s.status === 'em_rota'));
   
   const startRoute = async (id) => {
-      // Atualiza para em_rota
       await updateStatus(id, 'em_rota');
-      // Em uma aplicação real, aqui iniciaria o watchPosition
       alert("Rota iniciada! O cliente será notificado.");
   };
 
@@ -544,7 +636,7 @@ const DeliveriesView = ({ sales, updateStatus, markAsDelivered }) => {
   );
 };
 
-const StaffLoginScreen = ({ onLogin }) => {
+const StaffLoginScreen = ({ onLogin, drivers = [] }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -552,9 +644,23 @@ const StaffLoginScreen = ({ onLogin }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     const hash = window.location.hash;
-    if (hash === '#/admin' && username === 'admin' && password === '1234') onLogin('admin');
-    else if (hash === '#/driver' && username === 'entregador' && password === '1234') onLogin('entregador');
-    else setError('Acesso negado');
+    
+    // Admin Check
+    if (username === 'admin' && password === '1234') {
+        if(hash !== '#/admin') window.location.hash = '#/admin';
+        onLogin('admin');
+        return;
+    }
+    
+    // Entregador Check
+    const driver = drivers.find(d => d.username === username && d.password === password);
+    if (driver || (username === 'entregador' && password === '1234')) {
+        if(hash !== '#/driver') window.location.hash = '#/driver';
+        onLogin('entregador');
+        return;
+    }
+    
+    setError('Credenciais inválidas');
   };
 
   return (
@@ -567,14 +673,11 @@ const StaffLoginScreen = ({ onLogin }) => {
   );
 };
 
-// --- CUSTOMER TRACKING COMPONENT ---
 const CustomerTracking = ({ orderId, sales, onNewOrder }) => {
     const order = sales.find(s => s.id === orderId);
 
-    // Se não achar o pedido ou ele já foi entregue (e o cliente não está vendo o sucesso ainda), voltamos ao form
     if (!order) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-gray-500">Buscando pedido...</p></div>;
     
-    // Se foi entregue, mostra tela de sucesso
     if (order.status === 'entregue') {
          return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -601,7 +704,6 @@ const CustomerTracking = ({ orderId, sales, onNewOrder }) => {
                 </div>
                 
                 <div className="p-8 space-y-8">
-                    {/* Status Visual */}
                     <div className="flex flex-col items-center">
                         <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all duration-500 ${order.status === 'em_rota' ? 'bg-blue-100 text-blue-600 scale-110 shadow-lg' : 'bg-yellow-100 text-yellow-600'}`}>
                             {order.status === 'em_rota' ? <Truck size={40} className="animate-bounce" /> : <Package size={40} />}
@@ -614,12 +716,10 @@ const CustomerTracking = ({ orderId, sales, onNewOrder }) => {
                         </p>
                     </div>
 
-                    {/* Progress Bar Simulated */}
                     <div className="w-full bg-gray-100 rounded-full h-2 relative overflow-hidden">
                          <div className={`h-full rounded-full transition-all duration-1000 ${order.status === 'em_rota' ? 'w-3/4 bg-blue-500' : 'w-1/4 bg-yellow-400'}`}></div>
                     </div>
 
-                    {/* Info Card */}
                     <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-500">Valor a Pagar:</span>
@@ -703,9 +803,11 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
+  
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [user, setUser] = useState(null);
   
   const [cart, setCart] = useState([]);
@@ -714,11 +816,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'water', price: '', stock: '' });
   const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
-
-  // Mobile Menu State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Customer Active Order State (Persistent)
   const [activeOrderId, setActiveOrderId] = useState(() => localStorage.getItem('activeOrderId') || null);
 
   useEffect(() => {
@@ -738,34 +836,25 @@ export default function App() {
     });
     const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), s => setSales(s.docs.map(x => ({id:x.id, ...x.data()})).sort((a,b) => new Date(b.date)-new Date(a.date))));
     const unsubC = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), s => setCustomers(s.docs.map(x => ({id:x.id, ...x.data()}))));
-    return () => { unsubP(); unsubS(); unsubC(); };
+    const unsubD = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), s => setDrivers(s.docs.map(x => ({id:x.id, ...x.data()}))));
+    return () => { unsubP(); unsubS(); unsubC(); unsubD(); };
   }, [user]);
 
-  const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
+  const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin'; if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver'; setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
   const handleLogout = () => { setIsAuthenticated(false); window.location.hash = '#/'; };
 
   const handleCustomerOrder = async (data) => {
     if (!db) return;
-    try {
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
-            date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
-        });
-        
-        // Save ID to local storage for tracking
-        localStorage.setItem('activeOrderId', docRef.id);
-        setActiveOrderId(docRef.id);
-
-        for (const item of data.cart) {
-            const p = products.find(prod => prod.id === item.id);
-            if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
-        }
-    } catch(e) { console.error(e); }
+    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
+      date: new Date().toISOString(), total: data.total, items: data.cart.map(i => ({name: i.name, qtd: i.quantity})), method: data.customer.payment, type: 'entrega', status: 'pendente', address: data.customer.address, client: data.customer.name
+    });
+    localStorage.setItem('activeOrderId', docRef.id);
+    setActiveOrderId(docRef.id);
+    for (const item of data.cart) {
+        const p = products.find(prod => prod.id === item.id);
+        if (p) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), {stock: p.stock - item.quantity});
+    }
   };
-
-  const handleNewOrder = () => {
-      localStorage.removeItem('activeOrderId');
-      setActiveOrderId(null);
-  }
 
   const updateStock = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {stock: parseInt(val)}); };
   const updatePrice = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {price: parseFloat(val)}); };
@@ -784,7 +873,7 @@ export default function App() {
   };
 
   if (route === '#/admin') {
-    if (!isAuthenticated || userRole !== 'admin') return <StaffLoginScreen onLogin={handleLogin} />;
+    if (!isAuthenticated || userRole !== 'admin') return <StaffLoginScreen onLogin={handleLogin} drivers={drivers} />;
     return (
       <div className="flex h-screen bg-gray-50 overflow-hidden relative">
         {mobileMenuOpen && (
@@ -801,6 +890,7 @@ export default function App() {
               {id:'pos', icon:ShoppingCart, l:'PDV'},
               {id:'inventory', icon:Package, l:'Estoque'},
               {id:'customers', icon:Users, l:'Clientes'},
+              {id:'drivers', icon:UserCog, l:'Entregadores'},
               {id:'sales', icon:History, l:'Histórico'}
             ].map(m => (
               <button key={m.id} onClick={()=>{setActiveTab(m.id); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}><m.icon/>{m.l}</button>
@@ -819,6 +909,7 @@ export default function App() {
             {activeTab === 'pos' && <POSView products={products} cart={cart} addToCart={(p) => {const ex = cart.find(x=>x.id===p.id); if(ex) setCart(cart.map(x=>x.id===p.id?{...x, quantity:x.quantity+1}:x)); else setCart([...cart, {...p, quantity:1}]);}} updateCartQuantity={(id,d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: Math.max(1, i.quantity+d)}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} cartTotal={cart.reduce((a,b)=>a+b.price*b.quantity,0)} finalizeSale={finalizeSale}/>}
             {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={setDeleteConfirmationId} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
             {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} />}
+            {activeTab === 'drivers' && <DriversView drivers={drivers} appId={appId} />}
             {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="admin" />}
           </div>
         </main>
@@ -827,7 +918,7 @@ export default function App() {
   }
 
   if (route === '#/driver') {
-    if (!isAuthenticated || userRole !== 'entregador') return <StaffLoginScreen onLogin={handleLogin} />;
+    if (!isAuthenticated || userRole !== 'entregador') return <StaffLoginScreen onLogin={handleLogin} drivers={drivers} />;
     return (
       <div className="flex h-screen bg-gray-50 overflow-hidden relative">
         {mobileMenuOpen && (
@@ -859,10 +950,6 @@ export default function App() {
     );
   }
 
-  // Se existe um pedido ativo no localStorage, mostra a tela de rastreamento
-  if (activeOrderId) {
-      return <CustomerTracking orderId={activeOrderId} sales={sales} onNewOrder={handleNewOrder} />
-  }
-
+  if (activeOrderId) return <CustomerTracking orderId={activeOrderId} sales={sales} onNewOrder={() => { localStorage.removeItem('activeOrderId'); setActiveOrderId(null); }} />;
   return <CustomerOrderView products={products} onOrder={handleCustomerOrder} />;
 }
