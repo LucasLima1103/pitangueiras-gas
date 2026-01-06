@@ -40,8 +40,9 @@ import {
   Navigation,
   Map,
   UserCog,
-  Eye,    // Novo ícone
-  EyeOff  // Novo ícone
+  Eye,
+  EyeOff,
+  Activity // Ícone para Logs
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -152,7 +153,52 @@ const Button = ({ children, onClick, variant = 'primary', className = "", disabl
 
 // --- VIEWS ---
 
-const DriversView = ({ drivers, appId }) => {
+const LogsView = ({ logs }) => {
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Activity className="text-blue-600" /> Logs do Sistema
+        </h2>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500">
+            <tr>
+              <th className="p-4">Data/Hora</th>
+              <th className="p-4">Usuário</th>
+              <th className="p-4">Ação</th>
+              <th className="p-4">Detalhes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {logs.length === 0 ? (
+              <tr><td colSpan="4" className="p-8 text-center text-gray-400">Nenhum registro encontrado.</td></tr>
+            ) : (
+              logs.map((log, idx) => (
+                <tr key={log.id || idx} className="hover:bg-gray-50">
+                  <td className="p-4 whitespace-nowrap">
+                    {formatDateSafe(log.date)} <span className="text-gray-400 text-xs">{formatTimeSafe(log.date)}</span>
+                  </td>
+                  <td className="p-4 font-medium text-gray-700">{log.user || 'Sistema'}</td>
+                  <td className="p-4">
+                    <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold border border-gray-200">
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="p-4 text-gray-600">{log.details}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const DriversView = ({ drivers, appId, logAction }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newDriver, setNewDriver] = useState({ name: '', username: '', password: '' });
   const [visiblePasswords, setVisiblePasswords] = useState({});
@@ -163,16 +209,18 @@ const DriversView = ({ drivers, appId }) => {
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), newDriver);
+      logAction('Criar Entregador', `Novo entregador cadastrado: ${newDriver.name}`);
       setIsModalOpen(false);
       setNewDriver({ name: '', username: '', password: '' });
       alert("Entregador cadastrado com sucesso!");
     } catch (e) { console.error(e); }
   };
 
-  const handleDeleteDriver = async (id) => {
+  const handleDeleteDriver = async (id, name) => {
     if(confirm('Remover este entregador?')) {
       try {
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', id));
+        logAction('Excluir Entregador', `Entregador removido: ${name}`);
       } catch(e) { console.error(e); }
     }
   };
@@ -217,7 +265,7 @@ const DriversView = ({ drivers, appId }) => {
                     </button>
                   </td>
                   <td className="p-4 text-center">
-                    <button onClick={() => handleDeleteDriver(driver.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                    <button onClick={() => handleDeleteDriver(driver.id, driver.name)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
                       <Trash2 size={18} />
                     </button>
                   </td>
@@ -243,7 +291,7 @@ const DriversView = ({ drivers, appId }) => {
   );
 };
 
-const CustomersView = ({ customers, appId }) => {
+const CustomersView = ({ customers, appId, logAction }) => {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', cpf: '', address: '' });
@@ -254,6 +302,7 @@ const CustomersView = ({ customers, appId }) => {
     if (!db) return alert("Erro de conexão");
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), { ...newCustomer, debts: [] });
+      logAction('Criar Cliente', `Cliente cadastrado: ${newCustomer.name}`);
       setIsCustomerModalOpen(false);
       setNewCustomer({ name: '', cpf: '', address: '' });
     } catch (e) { console.error(e); }
@@ -264,14 +313,16 @@ const CustomersView = ({ customers, appId }) => {
     const debt = { id: Date.now(), ...newDebt, amount: parseFloat(newDebt.amount), paid: false };
     const customerRef = doc(db, 'artifacts', appId, 'public', 'data', 'customers', selectedCustomer.id);
     await updateDoc(customerRef, { debts: [debt, ...(selectedCustomer.debts || [])] });
+    logAction('Adicionar Fiado', `Cliente: ${selectedCustomer.name}, Valor: ${formatCurrency(debt.amount)}`);
     setNewDebt({ purchaseDate: '', dueDate: '', amount: '', description: '' });
   };
 
-  const toggleDebtStatus = async (debtId) => {
+  const toggleDebtStatus = async (debtId, currentStatus) => {
     if (!selectedCustomer || !db) return;
     const customerRef = doc(db, 'artifacts', appId, 'public', 'data', 'customers', selectedCustomer.id);
     const updatedDebts = selectedCustomer.debts.map(d => d.id === debtId ? { ...d, paid: !d.paid } : d);
     await updateDoc(customerRef, { debts: updatedDebts });
+    logAction('Atualizar Fiado', `Cliente: ${selectedCustomer.name}, Status alterado para: ${!currentStatus ? 'Pago' : 'Pendente'}`);
   };
 
   const activeCustomerData = selectedCustomer ? customers.find(c => c.id === selectedCustomer.id) : null;
@@ -331,7 +382,7 @@ const CustomersView = ({ customers, appId }) => {
                         <td className="p-3 text-red-600">{formatDateSafe(debt.dueDate)}</td>
                         <td className="p-3 text-right font-bold">{formatCurrency(debt.amount)}</td>
                         <td className="p-3 text-center">
-                          <button onClick={() => toggleDebtStatus(debt.id)} className={`px-2 py-1 rounded text-xs font-bold ${debt.paid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{debt.paid ? 'PAGO' : 'PENDENTE'}</button>
+                          <button onClick={() => toggleDebtStatus(debt.id, debt.paid)} className={`px-2 py-1 rounded text-xs font-bold ${debt.paid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{debt.paid ? 'PAGO' : 'PENDENTE'}</button>
                         </td>
                       </tr>
                     ))}
@@ -587,8 +638,21 @@ const InventoryView = ({
   showTrash, setShowTrash, activeTrash, products, updateStock, updatePrice, 
   moveToTrash, restoreFromTrash, deletePermanently, setDeleteConfirmationId, 
   isModalOpen, setIsModalOpen, newProduct, setNewProduct, handleAddProduct,
-  deleteConfirmationId, executeMoveToTrash
+  deleteConfirmationId, executeMoveToTrash, logAction
 }) => {
+  
+  const handleUpdateStock = (id, val) => {
+    updateStock(id, val);
+    const p = products.find(p => p.id === id);
+    if(p) logAction('Atualizar Estoque', `Produto: ${p.name}, Novo estoque: ${val}`);
+  }
+
+  const handleUpdatePrice = (id, val) => {
+    updatePrice(id, val);
+    const p = products.find(p => p.id === id);
+    if(p) logAction('Atualizar Preço', `Produto: ${p.name}, Novo preço: ${val}`);
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center">
@@ -605,8 +669,8 @@ const InventoryView = ({
             {(showTrash ? activeTrash : products).map(p => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="p-4 font-medium text-gray-800">{p.name}</td>
-                <td className="p-4"><div className="flex items-center justify-center gap-2">{!showTrash && <button onClick={() => updateStock(p.id, Math.max(0, p.stock - 1))} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center hover:bg-red-100"><Minus size={14}/></button>}<span className="w-8 text-center">{p.stock}</span>{!showTrash && <button onClick={() => updateStock(p.id, p.stock + 1)} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center hover:bg-green-100"><Plus size={14}/></button>}</div></td>
-                <td className="p-4 text-right">{!showTrash ? <input type="number" step="0.10" value={p.price} onChange={e => updatePrice(p.id, e.target.value)} className="w-20 text-right border rounded p-1" /> : formatCurrency(p.price)}</td>
+                <td className="p-4"><div className="flex items-center justify-center gap-2">{!showTrash && <button onClick={() => handleUpdateStock(p.id, Math.max(0, p.stock - 1))} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center hover:bg-red-100"><Minus size={14}/></button>}<span className="w-8 text-center">{p.stock}</span>{!showTrash && <button onClick={() => handleUpdateStock(p.id, p.stock + 1)} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center hover:bg-green-100"><Plus size={14}/></button>}</div></td>
+                <td className="p-4 text-right">{!showTrash ? <input type="number" step="0.10" value={p.price} onChange={e => handleUpdatePrice(p.id, e.target.value)} className="w-20 text-right border rounded p-1" /> : formatCurrency(p.price)}</td>
                 <td className="p-4 text-center">{showTrash ? <button onClick={() => restoreFromTrash(p.id)} className="text-green-600 p-2"><RotateCcw size={18}/></button> : <button onClick={() => setDeleteConfirmationId(p.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 size={18}/></button>}</td>
               </tr>
             ))}
@@ -885,10 +949,12 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
+  
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [user, setUser] = useState(null);
   
   const [cart, setCart] = useState([]);
@@ -931,8 +997,23 @@ export default function App() {
     const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), s => setSales(s.docs.map(x => ({id:x.id, ...x.data()})).sort((a,b) => new Date(b.date)-new Date(a.date))));
     const unsubC = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), s => setCustomers(s.docs.map(x => ({id:x.id, ...x.data()}))));
     const unsubD = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), s => setDrivers(s.docs.map(x => ({id:x.id, ...x.data()}))));
-    return () => { unsubP(); unsubS(); unsubC(); unsubD(); };
+    const unsubL = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), s => setLogs(s.docs.map(x => ({id:x.id, ...x.data()})).sort((a,b) => new Date(b.date)-new Date(a.date))));
+    return () => { unsubP(); unsubS(); unsubC(); unsubD(); unsubL(); };
   }, [user]);
+
+  // Função centralizada de Logs
+  const logAction = async (action, details) => {
+    if (!db) return;
+    const userEmail = user ? (user.email || user.uid) : 'Sistema/Anônimo';
+    try {
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), {
+            date: new Date().toISOString(),
+            action,
+            details,
+            user: userEmail
+        });
+    } catch (e) { console.error("Log error", e); }
+  };
 
   const handleLogin = (role) => { setIsAuthenticated(true); setUserRole(role); if (role === 'admin' && route !== '#/admin') window.location.hash = '#/admin'; if (role === 'entregador' && route !== '#/driver') window.location.hash = '#/driver'; setActiveTab(role === 'admin' ? 'dashboard' : 'deliveries'); };
   
@@ -942,8 +1023,6 @@ export default function App() {
         await signOut(auth); // Sair do Firebase Auth
         await signInAnonymously(auth);
       } catch(e) { console.error(e) }
-      // Não redireciona a rota, apenas atualiza o estado de autenticação para falso
-      // Isso fará com que o componente StaffLoginScreen seja renderizado na rota atual (#/admin ou #/driver)
   };
 
   const handleCustomerOrder = async (data) => {
@@ -955,6 +1034,7 @@ export default function App() {
         
         localStorage.setItem('activeOrderId', docRef.id);
         setActiveOrderId(docRef.id);
+        logAction('Novo Pedido Online', `Cliente: ${data.customer.name}, Valor: ${formatCurrency(data.total)}`);
 
         for (const item of data.cart) {
             const p = products.find(prod => prod.id === item.id);
@@ -970,17 +1050,42 @@ export default function App() {
 
   const updateStock = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {stock: parseInt(val)}); };
   const updatePrice = async (id, val) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {price: parseFloat(val)}); };
-  const handleAddProduct = async () => { if(db) await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), {...newProduct, stock: parseInt(newProduct.stock), price: parseFloat(newProduct.price)}); setIsModalOpen(false); };
+  const handleAddProduct = async () => { 
+      if(db) await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), {...newProduct, stock: parseInt(newProduct.stock), price: parseFloat(newProduct.price)}); 
+      logAction('Criar Produto', `Produto: ${newProduct.name}, Estoque: ${newProduct.stock}`);
+      setIsModalOpen(false); 
+  };
   
-  const executeMoveToTrash = async () => { if(db && deleteConfirmationId) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', deleteConfirmationId), {deletedAt: new Date().toISOString()}); setDeleteConfirmationId(null); };
-  const restoreFromTrash = async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {deletedAt: null}); };
-  const deletePermanently = async (id) => { if(db && confirm('Excluir?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); };
+  const executeMoveToTrash = async () => { 
+      if(db && deleteConfirmationId) {
+          const p = products.find(x => x.id === deleteConfirmationId);
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', deleteConfirmationId), {deletedAt: new Date().toISOString()}); 
+          if(p) logAction('Mover para Lixeira', `Produto: ${p.name}`);
+      }
+      setDeleteConfirmationId(null); 
+  };
+  
+  const restoreFromTrash = async (id) => { 
+      if(db) {
+          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id), {deletedAt: null}); 
+          logAction('Restaurar Produto', `ID: ${id}`);
+      }
+  };
+  
+  const deletePermanently = async (id) => { 
+      if(db && confirm('Excluir?')) {
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
+          logAction('Exclusão Permanente', `Produto ID: ${id}`);
+      }
+  };
 
   const finalizeSale = async (method, isDelivery, details) => {
     if(!db) return;
+    const total = cart.reduce((a,b)=>a+b.price*b.quantity,0);
     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
-      date: new Date().toISOString(), total: cart.reduce((a,b)=>a+b.price*b.quantity,0), items: cart.map(i=>({name:i.name, qtd:i.quantity})), method, type: isDelivery?'entrega':'balcao', status: isDelivery?'pendente':'entregue', ...details
+      date: new Date().toISOString(), total, items: cart.map(i=>({name:i.name, qtd:i.quantity})), method, type: isDelivery?'entrega':'balcao', status: isDelivery?'pendente':'entregue', ...details
     });
+    logAction('Venda PDV', `Total: ${formatCurrency(total)}, Tipo: ${isDelivery?'Entrega':'Balcão'}`);
     setCart([]);
   };
 
@@ -1003,7 +1108,8 @@ export default function App() {
               {id:'inventory', icon:Package, l:'Estoque'},
               {id:'customers', icon:Users, l:'Clientes'},
               {id:'drivers', icon:UserCog, l:'Entregadores'},
-              {id:'sales', icon:History, l:'Histórico'}
+              {id:'sales', icon:History, l:'Histórico'},
+              {id:'logs', icon:Activity, l:'Logs do Sistema'}
             ].map(m => (
               <button key={m.id} onClick={()=>{setActiveTab(m.id); setMobileMenuOpen(false)}} className={`flex gap-3 w-full p-2 rounded ${activeTab===m.id?'bg-blue-600':''}`}><m.icon/>{m.l}</button>
             ))}
@@ -1019,10 +1125,11 @@ export default function App() {
           <div className="flex-1 p-4 md:p-8 overflow-auto">
             {activeTab === 'dashboard' && <DashboardView sales={sales} products={products} />}
             {activeTab === 'pos' && <POSView products={products} cart={cart} addToCart={(p) => {const ex = cart.find(x=>x.id===p.id); if(ex) setCart(cart.map(x=>x.id===p.id?{...x, quantity:x.quantity+1}:x)); else setCart([...cart, {...p, quantity:1}]);}} updateCartQuantity={(id,d)=>setCart(cart.map(i=>i.id===id?{...i, quantity: Math.max(1, i.quantity+d)}:i))} removeFromCart={(id)=>setCart(cart.filter(i=>i.id!==id))} cartTotal={cart.reduce((a,b)=>a+b.price*b.quantity,0)} finalizeSale={finalizeSale}/>}
-            {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={setDeleteConfirmationId} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} />}
-            {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} />}
-            {activeTab === 'drivers' && <DriversView drivers={drivers} appId={appId} />}
+            {activeTab === 'inventory' && <InventoryView showTrash={showTrash} setShowTrash={setShowTrash} activeTrash={trash} products={products} updateStock={updateStock} updatePrice={updatePrice} moveToTrash={setDeleteConfirmationId} restoreFromTrash={restoreFromTrash} deletePermanently={deletePermanently} setDeleteConfirmationId={setDeleteConfirmationId} isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} newProduct={newProduct} setNewProduct={setNewProduct} handleAddProduct={handleAddProduct} deleteConfirmationId={deleteConfirmationId} executeMoveToTrash={executeMoveToTrash} logAction={logAction} />}
+            {activeTab === 'customers' && <CustomersView customers={customers} appId={appId} logAction={logAction} />}
+            {activeTab === 'drivers' && <DriversView drivers={drivers} appId={appId} logAction={logAction} />}
             {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="admin" />}
+            {activeTab === 'logs' && <LogsView logs={logs} />}
           </div>
         </main>
       </div>
@@ -1054,7 +1161,7 @@ export default function App() {
                 <div className="w-6"></div>
             </header>
             <div className="flex-1 p-4 md:p-8 overflow-auto">
-                {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); }} updateStatus={async (id, st) => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: st})} />}
+                {activeTab === 'deliveries' && <DeliveriesView sales={sales} markAsDelivered={async (id) => { if(db) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: 'entregue'}); logAction('Entrega Realizada', `Pedido ID: ${id} entregue`); } }} updateStatus={async (id, st) => { if(db) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {status: st}); logAction('Status Entrega', `Pedido ID: ${id} para ${st}`); } }} />}
                 {activeTab === 'sales' && <SalesHistoryView sales={sales} userRole="entregador" />}
             </div>
         </main>
