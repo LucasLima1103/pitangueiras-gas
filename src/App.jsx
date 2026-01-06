@@ -39,7 +39,9 @@ import {
   Menu,
   Navigation,
   Map,
-  UserCog 
+  UserCog,
+  Eye,    // Novo ícone
+  EyeOff  // Novo ícone
 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
@@ -153,6 +155,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "", disabl
 const DriversView = ({ drivers, appId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newDriver, setNewDriver] = useState({ name: '', username: '', password: '' });
+  const [visiblePasswords, setVisiblePasswords] = useState({});
 
   const handleAddDriver = async () => {
     if (!newDriver.name || !newDriver.username || !newDriver.password) return alert("Preencha todos os campos");
@@ -174,6 +177,13 @@ const DriversView = ({ drivers, appId }) => {
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', id));
       } catch(e) { console.error(e); }
     }
+  };
+
+  const togglePasswordVisibility = (id) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
   return (
@@ -205,7 +215,18 @@ const DriversView = ({ drivers, appId }) => {
                 <tr key={driver.id} className="hover:bg-gray-50">
                   <td className="p-4 font-medium text-gray-800">{driver.name}</td>
                   <td className="p-4 text-gray-600">{driver.username}</td>
-                  <td className="p-4 text-gray-400">••••••</td>
+                  <td className="p-4 text-gray-500 flex items-center gap-2">
+                    <span className="font-mono">
+                      {visiblePasswords[driver.id] ? driver.password : '••••••'}
+                    </span>
+                    <button 
+                      onClick={() => togglePasswordVisibility(driver.id)} 
+                      className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                      title={visiblePasswords[driver.id] ? "Ocultar senha" : "Ver senha"}
+                    >
+                      {visiblePasswords[driver.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </td>
                   <td className="p-4 text-center">
                     <button onClick={() => handleDeleteDriver(driver.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
                       <Trash2 size={18} />
@@ -802,8 +823,8 @@ const CustomerOrderView = ({ products, onOrder }) => {
             <div className="space-y-4">
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Seu Nome" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} />
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Endereço Completo" value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} />
-              <div className="grid grid-cols-3 gap-2">{['Dinheiro', 'PIX', 'Cartão'].map(m => <button key={m} onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`p-3 border rounded-xl ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}>{m}</button>)}</div>
-              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl">Confirmar Pedido</Button>
+              <div className="grid grid-cols-3 gap-2">{['Dinheiro', 'PIX', 'Cartão'].map(m => <button key={m} onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`py-3 px-2 rounded-xl text-sm font-medium border-2 flex flex-col items-center justify-center gap-2 ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-500'}`}>{m === 'Dinheiro' && <Banknote size={20}/>}{m === 'PIX' && <Smartphone size={20}/>}{m === 'Cartão' && <PaymentIcon size={20}/>}{m}</button>)}</div>
+              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl shadow-lg">Confirmar Pedido</Button>
             </div>
           </div>
         )}
@@ -874,8 +895,8 @@ export default function App() {
         await signOut(auth); // Sair do Firebase Auth
         await signInAnonymously(auth);
       } catch(e) { console.error(e) }
-      // Agora, permanecemos na rota atual (Admin ou Driver), mas como setIsAuthenticated é false,
-      // o componente renderizará automaticamente a tela de login.
+      // Não redireciona a rota, apenas atualiza o estado de autenticação para falso
+      // Isso fará com que o componente StaffLoginScreen seja renderizado na rota atual (#/admin ou #/driver)
   };
 
   const handleCustomerOrder = async (data) => {
