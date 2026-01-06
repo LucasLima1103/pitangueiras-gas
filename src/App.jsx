@@ -159,8 +159,6 @@ const DriversView = ({ drivers, appId }) => {
 
   const handleAddDriver = async () => {
     if (!newDriver.name || !newDriver.username || !newDriver.password) return alert("Preencha todos os campos");
-    
-    // Verifica se já existe o usuário
     if (drivers.some(d => d.username === newDriver.username)) return alert("Este nome de usuário já existe");
 
     try {
@@ -180,10 +178,7 @@ const DriversView = ({ drivers, appId }) => {
   };
 
   const togglePasswordVisibility = (id) => {
-    setVisiblePasswords(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -216,14 +211,8 @@ const DriversView = ({ drivers, appId }) => {
                   <td className="p-4 font-medium text-gray-800">{driver.name}</td>
                   <td className="p-4 text-gray-600">{driver.username}</td>
                   <td className="p-4 text-gray-500 flex items-center gap-2">
-                    <span className="font-mono">
-                      {visiblePasswords[driver.id] ? driver.password : '••••••'}
-                    </span>
-                    <button 
-                      onClick={() => togglePasswordVisibility(driver.id)} 
-                      className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                      title={visiblePasswords[driver.id] ? "Ocultar senha" : "Ver senha"}
-                    >
+                    <span className="font-mono">{visiblePasswords[driver.id] ? driver.password : '••••••'}</span>
+                    <button onClick={() => togglePasswordVisibility(driver.id)} className="text-gray-400 hover:text-blue-600 p-1">
                       {visiblePasswords[driver.id] ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </td>
@@ -243,22 +232,10 @@ const DriversView = ({ drivers, appId }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl w-96 space-y-4">
             <h3 className="font-bold text-lg">Novo Entregador</h3>
-            <div>
-              <label className="text-sm text-gray-600">Nome Completo</label>
-              <input className="w-full border p-2 rounded mt-1" value={newDriver.name} onChange={e => setNewDriver({...newDriver, name: e.target.value})} />
-            </div>
-            <div>
-              <label className="text-sm text-gray-600">Usuário de Login</label>
-              <input className="w-full border p-2 rounded mt-1" value={newDriver.username} onChange={e => setNewDriver({...newDriver, username: e.target.value})} />
-            </div>
-            <div>
-              <label className="text-sm text-gray-600">Senha</label>
-              <input className="w-full border p-2 rounded mt-1" type="password" value={newDriver.password} onChange={e => setNewDriver({...newDriver, password: e.target.value})} />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button onClick={() => setIsModalOpen(false)} variant="secondary" className="flex-1">Cancelar</Button>
-              <Button onClick={handleAddDriver} className="flex-1">Salvar</Button>
-            </div>
+            <div><label className="text-sm text-gray-600">Nome Completo</label><input className="w-full border p-2 rounded mt-1" value={newDriver.name} onChange={e => setNewDriver({...newDriver, name: e.target.value})} /></div>
+            <div><label className="text-sm text-gray-600">Usuário de Login</label><input className="w-full border p-2 rounded mt-1" value={newDriver.username} onChange={e => setNewDriver({...newDriver, username: e.target.value})} /></div>
+            <div><label className="text-sm text-gray-600">Senha</label><input className="w-full border p-2 rounded mt-1" type="password" value={newDriver.password} onChange={e => setNewDriver({...newDriver, password: e.target.value})} /></div>
+            <div className="flex gap-2 pt-2"><Button onClick={() => setIsModalOpen(false)} variant="secondary" className="flex-1">Cancelar</Button><Button onClick={handleAddDriver} className="flex-1">Salvar</Button></div>
           </div>
         </div>
       )}
@@ -381,36 +358,106 @@ const CustomersView = ({ customers, appId }) => {
 };
 
 const DashboardView = ({ sales, products }) => {
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const today = new Date().toLocaleDateString();
+  
+  // Vendas de Hoje (Tempo Real)
   const salesToday = sales.filter(s => {
       try { return new Date(s.date).toLocaleDateString() === today; } 
       catch { return false; }
   });
   const revenueToday = salesToday.reduce((acc, s) => acc + (s.total || 0), 0);
-  const lowStockItems = products.filter(p => p.stock < 15);
+
+  // Vendas do Período Filtrado
+  const salesFiltered = sales.filter(s => {
+    if (!startDate && !endDate) return true;
+    try {
+      const sDate = new Date(s.date);
+      // Para simplificar a comparação de datas e evitar problemas de fuso horário em uma aplicação frontend simples
+      // vamos converter para string YYYY-MM-DD
+      const sDateStr = s.date.split('T')[0];
+      
+      const start = startDate || '0000-01-01';
+      const end = endDate || '9999-12-31';
+      
+      return sDateStr >= start && sDateStr <= end;
+    } catch { return false; }
+  });
   
+  const revenueFiltered = salesFiltered.reduce((acc, s) => acc + (s.total || 0), 0);
+
+  const lowStockItems = products.filter(p => p.stock < 15);
   const activeDeliveries = sales.filter(s => s.status === 'em_rota');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-blue-50 border-blue-100">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-full text-white"><DollarSign size={24} /></div>
-            <div><p className="text-sm text-blue-700 font-medium">Faturamento Hoje</p><h3 className="text-2xl font-bold text-gray-800">{formatCurrency(revenueToday)}</h3></div>
+      {/* Header com Filtros */}
+      <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+         <div>
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <LayoutDashboard className="text-blue-600" /> Dashboard
+            </h2>
+            <p className="text-sm text-gray-500">Visão geral do seu negócio</p>
+         </div>
+         <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+            <Calendar size={18} className="text-gray-400"/>
+            <div className="flex items-center gap-2">
+                <input 
+                    type="date" 
+                    className="bg-transparent text-sm outline-none text-gray-600"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                />
+                <span className="text-gray-400">até</span>
+                <input 
+                    type="date" 
+                    className="bg-transparent text-sm outline-none text-gray-600"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                />
+            </div>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Card 1: Faturamento Hoje (Real Time) */}
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-20"><DollarSign size={56} /></div>
+          <div className="relative z-10">
+            <p className="text-blue-100 font-medium text-xs uppercase tracking-wide mb-1 flex items-center gap-1">
+              <RefreshCw size={12} className="animate-spin"/> Hoje (Tempo Real)
+            </p>
+            <h3 className="text-3xl font-bold mb-1">{formatCurrency(revenueToday)}</h3>
+            <p className="text-blue-100 text-xs">{salesToday.length} vendas realizadas</p>
           </div>
         </Card>
-        <Card className="bg-emerald-50 border-emerald-100">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-emerald-500 rounded-full text-white"><TrendingUp size={24} /></div>
-            <div><p className="text-sm text-emerald-600 font-medium">Vendas Totais</p><h3 className="text-2xl font-bold text-gray-800">{sales.length}</h3></div>
-          </div>
+        
+        {/* Card 2: Faturamento Período */}
+        <Card className="bg-white border-emerald-100 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 text-emerald-600"><TrendingUp size={56} /></div>
+          <p className="text-gray-500 font-medium text-xs uppercase tracking-wide mb-1">Faturamento (Período)</p>
+          <h3 className="text-3xl font-bold text-emerald-600">{formatCurrency(revenueFiltered)}</h3>
+          <p className="text-emerald-600 text-xs font-medium bg-emerald-50 px-2 py-1 rounded w-fit mt-2">
+            {salesFiltered.length} vendas filtradas
+          </p>
         </Card>
-        <Card className="bg-orange-50 border-orange-100">
-           <div className="flex items-center gap-4">
-            <div className="p-3 bg-orange-500 rounded-full text-white"><Truck size={24} /></div>
-            <div><p className="text-sm text-orange-600 font-medium">Entregas em Andamento</p><h3 className="text-2xl font-bold text-gray-800">{activeDeliveries.length}</h3></div>
-          </div>
+
+        {/* Card 3: Entregas */}
+        <Card className="bg-white border-orange-100 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-4 opacity-5 text-orange-600"><Truck size={56} /></div>
+           <p className="text-gray-500 font-medium text-xs uppercase tracking-wide mb-1">Entregas em Andamento</p>
+           <h3 className="text-3xl font-bold text-orange-600">{activeDeliveries.length}</h3>
+           <p className="text-orange-600 text-xs font-medium bg-orange-50 px-2 py-1 rounded w-fit mt-2">Monitoramento Ativo</p>
+        </Card>
+
+        {/* Card 4: Estoque */}
+        <Card className="bg-white border-red-100 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-4 opacity-5 text-red-600"><Package size={56} /></div>
+           <p className="text-gray-500 font-medium text-xs uppercase tracking-wide mb-1">Alerta de Estoque</p>
+           <h3 className="text-3xl font-bold text-red-600">{lowStockItems.length}</h3>
+           <p className="text-red-600 text-xs font-medium bg-red-50 px-2 py-1 rounded w-fit mt-2">Produtos Críticos</p>
         </Card>
       </div>
 
@@ -443,14 +490,14 @@ const DashboardView = ({ sales, products }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><History size={20} className="text-blue-600"/> Últimas Vendas</h3>
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><History size={20} className="text-blue-600"/> Vendas do Período</h3>
           <div className="overflow-hidden">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500"><tr><th className="p-3">Horário</th><th className="p-3">Valor</th><th className="p-3">Tipo</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {sales.length === 0 ? <tr><td colSpan="3" className="p-4 text-center text-gray-400">Sem vendas</td></tr> : sales.slice(0, 5).map(sale => (
+                {salesFiltered.length === 0 ? <tr><td colSpan="3" className="p-4 text-center text-gray-400">Sem vendas no período</td></tr> : salesFiltered.slice(0, 5).map(sale => (
                   <tr key={sale.id}>
-                    <td className="p-3">{formatTimeSafe(sale.date)}</td>
+                    <td className="p-3">{formatTimeSafe(sale.date)} <span className="text-xs text-gray-400">{formatDateSafe(sale.date)}</span></td>
                     <td className="p-3 font-medium">{formatCurrency(sale.total)}</td>
                     <td className="p-3"><span className={`px-2 py-1 rounded text-xs ${sale.type === 'entrega' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{sale.type || 'Venda'}</span></td>
                   </tr>
@@ -823,8 +870,8 @@ const CustomerOrderView = ({ products, onOrder }) => {
             <div className="space-y-4">
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Seu Nome" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} />
               <input className="w-full border bg-gray-50 p-3 rounded-xl" placeholder="Endereço Completo" value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} />
-              <div className="grid grid-cols-3 gap-2">{['Dinheiro', 'PIX', 'Cartão'].map(m => <button key={m} onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`py-3 px-2 rounded-xl text-sm font-medium border-2 flex flex-col items-center justify-center gap-2 ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-500'}`}>{m === 'Dinheiro' && <Banknote size={20}/>}{m === 'PIX' && <Smartphone size={20}/>}{m === 'Cartão' && <PaymentIcon size={20}/>}{m}</button>)}</div>
-              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl shadow-lg">Confirmar Pedido</Button>
+              <div className="grid grid-cols-3 gap-2">{['Dinheiro', 'PIX', 'Cartão'].map(m => <button key={m} onClick={() => setCustomerInfo({...customerInfo, payment: m})} className={`p-3 border rounded-xl ${customerInfo.payment === m ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}>{m}</button>)}</div>
+              <Button onClick={() => { if(!customerInfo.name || !customerInfo.address) return alert('Preencha tudo'); onOrder({ cart, total, customer: customerInfo }); }} className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl">Confirmar Pedido</Button>
             </div>
           </div>
         )}
